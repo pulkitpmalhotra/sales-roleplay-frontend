@@ -30,23 +30,31 @@ const Dashboard = ({ user }) => {
   }, []);
 
   const loadData = async () => {
-    try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const token = await user.getIdToken();
+    console.log('🔑 Token preview:', token.substring(0, 20) + '...'); // Debug
+    
+    const headers = { 
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+    
+    console.log('📤 Request headers:', headers); // Debug
+    console.log('🌐 Making request to:', `${API_BASE_URL}/api/scenarios`); // Debug
 
-      const [scenariosRes, sessionsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/scenarios`, { headers }),
-        axios.get(`${API_BASE_URL}/api/sessions/history?${new URLSearchParams(sessionFilters)}`, { headers })
-      ]);
-
-      setScenarios(scenariosRes.data);
-      setSessionsData(sessionsRes.data);
-      setSessions(sessionsRes.data.sessions || []); // Keep for compatibility
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-    setLoading(false);
-  };
+    const scenariosRes = await axios.get(`${API_BASE_URL}/api/scenarios`, { headers });
+    
+    console.log('✅ Scenarios response:', scenariosRes.data);
+    setScenarios(scenariosRes.data);
+    
+  } catch (error) {
+    console.error('❌ Full error object:', error);
+    console.error('❌ Response data:', error.response?.data);
+    console.error('❌ Response status:', error.response?.status);
+    console.error('❌ Response headers:', error.response?.headers);
+  }
+  setLoading(false);
+};
 
   const loadMoreSessions = async () => {
     try {
