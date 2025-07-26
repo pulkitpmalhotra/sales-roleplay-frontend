@@ -33,16 +33,19 @@ const VideoSession = ({ user }) => {
   }, []);
 
   const initializeSession = async () => {
-    try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
+  console.log('VideoSession API_BASE_URL:', API_BASE_URL); // Add this debug line
+  try {
+    const token = await user.getIdToken();
+    const headers = { Authorization: `Bearer ${token}` };
 
-      // Create video room
-      const roomResponse = await axios.post(
-        `${API_BASE_URL}/api/video/create-room`,
-        {},
-        { headers }
-      );
+    // Create video room
+    console.log('Creating room at:', `${API_BASE_URL}/api/video/create-room`); // Add this
+    const roomResponse = await axios.post(
+      `${API_BASE_URL}/api/video/create-room`,
+      {},
+      { headers }
+    );
+    // ... rest of code
 
       // Start session
       const sessionResponse = await axios.post(
