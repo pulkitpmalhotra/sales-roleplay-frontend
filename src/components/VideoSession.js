@@ -286,7 +286,7 @@ const endSession = async () => {
 };
 
   // ... (keep your existing loading, error, and feedback JSX the same)
-
+ if (feedback) {
   return (
     <div className="video-session">
       <div className="session-header google-ads">
@@ -312,7 +312,7 @@ const endSession = async () => {
 </div>
         // Update feedback display in VideoSession.js
 
- if (feedback) {
+
   return (
     <div className="feedback-container google-ads">
       <div className="feedback-card">
