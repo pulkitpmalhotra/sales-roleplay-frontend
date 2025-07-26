@@ -339,7 +339,9 @@ const viewSessionDetails = async (sessionId) => {
               >
                 ×
               </button>
-            </div>
+    </div>
+  )}
+);
             
             <div className="modal-content">
               <div className="session-overview">
