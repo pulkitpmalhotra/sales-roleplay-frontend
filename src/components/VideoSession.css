@@ -212,9 +212,29 @@
   50% { box-shadow: 0 0 20px rgba(76, 175, 80, 0.8); }
 }
 
-@keyframes thinkingGlow {
-  0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
-  50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+.listening-indicator {
+  padding: 8px 16px;
+  background: #2196f3;
+  color: white;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  animation: listeningGlow 1.5s ease-in-out infinite;
+}
+
+.ready-indicator {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+@keyframes listeningGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(33, 150, 243, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(33, 150, 243, 0.8); }
 }
 
 .session-info {
