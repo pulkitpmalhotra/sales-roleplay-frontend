@@ -12,7 +12,7 @@ const Dashboard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('scenarios');
   const navigate = useNavigate();
 
-  const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+  const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
   useEffect(() => {
     loadData();
