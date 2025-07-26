@@ -98,7 +98,7 @@ const Dashboard = ({ user }) => {
                 </div>
               ) : (
                 <div className="scenarios-grid">
-                  {scenarios.map((scenario) => (
+                  {(scenarios || []).map((scenario) => (
                     <div key={scenario.id} className="scenario-card">
                       <h3>{scenario.title}</h3>
                       <p>{scenario.description}</p>
@@ -128,7 +128,7 @@ const Dashboard = ({ user }) => {
                 </div>
               ) : (
                 <div className="sessions-list">
-                  {sessions.map((session) => (
+                  {(sessions || []).map((session) => (
                     <div key={session.id} className="session-card">
                       <div className="session-header">
                         <h4>Scenario {session.scenarioId}</h4>
