@@ -49,20 +49,19 @@
 }
 
 .end-session-button {
-  background: #e74c3c;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.3s;
+  position: relative;
+  z-index: 1000;
+  pointer-events: auto;
+  background: #e74c3c !important;
+  color: white !important;
+  border: 2px solid #c0392b !important;
+  padding: 12px 24px !important;
+  cursor: pointer !important;
 }
 
 .end-session-button:hover {
-  background: #c0392b;
+  background: #c0392b !important;
 }
-
 .video-container {
   height: 60vh;
   background: #000;
