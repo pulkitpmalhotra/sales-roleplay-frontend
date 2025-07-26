@@ -312,11 +312,12 @@ const endSession = async () => {
 </div>
         // Update feedback display in VideoSession.js
 
+ if (feedback) {
   return (
     <div className="feedback-container google-ads">
       <div className="feedback-card">
         <h2>🎯 Google Ads Sales Performance</h2>
-        <p>Your {feedback.skillArea} practice session results:</p>
+        <p>Your {feedback?.skillArea || 'sales'} practice session results:</p>
         
         <div className="google-ads-metrics">
           <div className="metric-category">
@@ -324,41 +325,43 @@ const endSession = async () => {
             <div className="metrics-grid">
               <div className="metric">
                 <h4>Discovery</h4>
-                <div className="score-circle">{feedback.discovery_score}/5</div>
+                <div className="score-circle">{feedback?.discovery_score || feedback?.talkTimeRatio || 50}/5</div>
                 <p>Asking the right questions</p>
               </div>
               
               <div className="metric">
                 <h4>Product Knowledge</h4>
-                <div className="score-circle">{feedback.product_knowledge_score}/5</div>
+                <div className="score-circle">{feedback?.product_knowledge_score || feedback?.confidenceScore || 50}/5</div>
                 <p>Google Ads expertise</p>
               </div>
               
               <div className="metric">
                 <h4>Objection Handling</h4>
-                <div className="score-circle">{feedback.objection_handling_score}/5</div>
+                <div className="score-circle">{feedback?.objection_handling_score || 3}/5</div>
                 <p>Addressing concerns</p>
               </div>
               
               <div className="metric">
                 <h4>Solution Fit</h4>
-                <div className="score-circle">{feedback.solution_fit_score}/5</div>
+                <div className="score-circle">{feedback?.solution_fit_score || 3}/5</div>
                 <p>Matching products to needs</p>
               </div>
             </div>
           </div>
           
-          <div className="google-ads-concepts">
-            <h4>Google Ads Concepts Used</h4>
-            <div className="concepts-list">
-              {feedback.google_ads_concepts_used?.map((concept, index) => (
-                <span key={index} className="concept-tag">{concept}</span>
-              ))}
+          {feedback?.google_ads_concepts_used && feedback.google_ads_concepts_used.length > 0 && (
+            <div className="google-ads-concepts">
+              <h4>Google Ads Concepts Used</h4>
+              <div className="concepts-list">
+                {feedback.google_ads_concepts_used.map((concept, index) => (
+                  <span key={index} className="concept-tag">{concept}</span>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        {feedback.aiFeedback && (
+        {feedback?.aiFeedback && (
           <div className="ai-feedback-section google-ads">
             <h3>🎯 Google Ads Coach Feedback</h3>
             <div className="ai-feedback-text">
@@ -367,7 +370,7 @@ const endSession = async () => {
           </div>
         )}
         
-        {feedback.coachingRecommendations && (
+        {feedback?.coachingRecommendations && feedback.coachingRecommendations.length > 0 && (
           <div className="coaching-recommendations">
             <h4>📚 Next Steps to Improve</h4>
             <ul>
@@ -392,6 +395,7 @@ const endSession = async () => {
       </div>
     </div>
   );
+}
 }
       <div className="video-container" ref={callFrameRef}>
         {/* Daily.co video will appear here */}
