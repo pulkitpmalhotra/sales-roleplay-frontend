@@ -33,17 +33,42 @@ const VideoSession = ({ user }) => {
     };
   }, []);
 
-  const cleanup = () => {
-    if (callObject) {
-      callObject.destroy();
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    if (speechSynthesisRef.current) {
-      window.speechSynthesis.cancel();
-    }
-  };
+ const cleanup = () => {
+  console.log('🧹 Starting cleanup...'); // Debug log
+  
+  // Stop Daily.co call
+  if (callObject) {
+    console.log('🧹 Destroying Daily.co call');
+    callObject.destroy();
+    setCallObject(null);
+  }
+  
+  // Stop speech recognition
+  if (recognitionRef.current) {
+    console.log('🧹 Stopping speech recognition');
+    recognitionRef.current.stop();
+    recognitionRef.current = null;
+    setIsRecording(false);
+  }
+  
+  // Stop speech synthesis (THIS IS KEY!)
+  if (window.speechSynthesis) {
+    console.log('🧹 Stopping speech synthesis');
+    window.speechSynthesis.cancel(); // Stop all speech
+    window.speechSynthesis.pause();  // Pause any queued speech
+  }
+  
+  // Clear speech synthesis ref
+  if (speechSynthesisRef.current) {
+    speechSynthesisRef.current = null;
+  }
+  
+  // Reset AI speaking state
+  setIsAISpeaking(false);
+  setWaitingForAI(false);
+  
+  console.log('🧹 Cleanup completed');
+};
 
   const initializeSession = async () => {
     try {
