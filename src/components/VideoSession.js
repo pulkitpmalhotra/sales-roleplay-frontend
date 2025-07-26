@@ -7,6 +7,8 @@ import './VideoSession.css';
 const VideoSession = ({ user }) => {
   const { scenarioId } = useParams();
   const navigate = useNavigate();
+  
+  // All your existing state variables
   const [callObject, setCallObject] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -19,12 +21,22 @@ const VideoSession = ({ user }) => {
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
   
+  // ADD THESE MISSING VARIABLES:
+  const [scenarioData, setScenarioData] = useState(null);
+  
   const callFrameRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
   const lastTranscriptLength = useRef(0);
 
   const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
+
+  // ADD THIS MISSING FUNCTION:
+  const goToDashboard = () => {
+    navigate('/dashboard');
+  };
+
+  // ... rest of your component
 
   useEffect(() => {
     initializeSession();
@@ -71,16 +83,28 @@ const VideoSession = ({ user }) => {
 };
 
   const initializeSession = async () => {
-    try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const token = await user.getIdToken();
+    const headers = { Authorization: `Bearer ${token}` };
 
-      // Create video room
-      const roomResponse = await axios.post(
-        `${API_BASE_URL}/api/video/create-room`,
-        {},
-        { headers }
-      );
+    // ADD: Fetch scenario details first
+    const scenarioResponse = await axios.get(
+      `${API_BASE_URL}/api/scenarios`,
+      { headers }
+    );
+    
+    const currentScenario = scenarioResponse.data.find(s => 
+      s.scenario_id === scenarioId || s.id === scenarioId
+    );
+    
+    setScenarioData(currentScenario);
+
+    // Create video room
+    const roomResponse = await axios.post(
+      `${API_BASE_URL}/api/video/create-room`,
+      {},
+      { headers }
+    );
 
       // Start session
       const sessionResponse = await axios.post(
@@ -122,12 +146,13 @@ const VideoSession = ({ user }) => {
       // Join the call
       await daily.join();
 
-    } catch (error) {
-      console.error('Error initializing session:', error);
-      setError('Failed to start session');
-      setLoading(false);
-    }
-  };
+  } catch (error) {
+    console.error('Error initializing session:', error);
+    setError('Failed to start session');
+    setLoading(false);
+  }
+};
+
 
   const introduceAICharacter = () => {
     const introduction = "Hi there! I'm Sarah Mitchell, IT Director here. I'm pretty busy today, so let's see what you've got. What company are you calling from?";
