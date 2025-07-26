@@ -322,8 +322,6 @@ const viewSessionDetails = async (sessionId) => {
           </div>
         )}
       </>
-    )}
-  </div>
 )}
    </div> 
 </main>
