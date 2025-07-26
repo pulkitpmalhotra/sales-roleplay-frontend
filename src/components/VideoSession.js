@@ -264,26 +264,110 @@ const endSession = async () => {
 
   return (
     <div className="video-session">
-      <div className="session-header">
-        <h2>Roleplay with Sarah Mitchell - IT Director</h2>
-        <div className="session-controls">
-          <div className="ai-status">
-            {waitingForAI && <span>🤖 AI is thinking...</span>}
-            {isAISpeaking && <span>🗣️ Sarah is speaking...</span>}
-            {isRecording && !isAISpeaking && <span>🎤 Listening...</span>}
+      <div className="session-header google-ads">
+  <div className="session-title">
+    <h2>{scenarioData?.title}</h2>
+    <div className="session-context">
+      <span className="skill-area">{scenarioData?.sales_skill_area}</span>
+      <span className="buyer-persona">vs. {scenarioData?.buyer_persona}</span>
+      <span className="google-ads-focus">Focus: {scenarioData?.google_ads_focus}</span>
+    </div>
+  </div>
+  
+  <div className="session-controls">
+    <div className="ai-status">
+      {waitingForAI && <span>🤖 {scenarioData?.ai_character_name} is thinking...</span>}
+      {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name} is speaking...</span>}
+      {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
+    </div>
+    <button onClick={endSession} className="end-session-button">
+      End Google Ads Practice
+    </button>
+  </div>
+</div>
+        // Update feedback display in VideoSession.js
+if (feedback) {
+  return (
+    <div className="feedback-container google-ads">
+      <div className="feedback-card">
+        <h2>🎯 Google Ads Sales Performance</h2>
+        <p>Your {feedback.skillArea} practice session results:</p>
+        
+        <div className="google-ads-metrics">
+          <div className="metric-category">
+            <h3>Core Google Ads Skills</h3>
+            <div className="metrics-grid">
+              <div className="metric">
+                <h4>Discovery</h4>
+                <div className="score-circle">{feedback.discovery_score}/5</div>
+                <p>Asking the right questions</p>
+              </div>
+              
+              <div className="metric">
+                <h4>Product Knowledge</h4>
+                <div className="score-circle">{feedback.product_knowledge_score}/5</div>
+                <p>Google Ads expertise</p>
+              </div>
+              
+              <div className="metric">
+                <h4>Objection Handling</h4>
+                <div className="score-circle">{feedback.objection_handling_score}/5</div>
+                <p>Addressing concerns</p>
+              </div>
+              
+              <div className="metric">
+                <h4>Solution Fit</h4>
+                <div className="score-circle">{feedback.solution_fit_score}/5</div>
+                <p>Matching products to needs</p>
+              </div>
+            </div>
           </div>
+          
+          <div className="google-ads-concepts">
+            <h4>Google Ads Concepts Used</h4>
+            <div className="concepts-list">
+              {feedback.google_ads_concepts_used?.map((concept, index) => (
+                <span key={index} className="concept-tag">{concept}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {feedback.aiFeedback && (
+          <div className="ai-feedback-section google-ads">
+            <h3>🎯 Google Ads Coach Feedback</h3>
+            <div className="ai-feedback-text">
+              {feedback.aiFeedback}
+            </div>
+          </div>
+        )}
+        
+        {feedback.coachingRecommendations && (
+          <div className="coaching-recommendations">
+            <h4>📚 Next Steps to Improve</h4>
+            <ul>
+              {feedback.coachingRecommendations.map((rec, index) => (
+                <li key={index}>{rec}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="feedback-actions">
+          <button onClick={goToDashboard} className="primary-button">
+            Back to Dashboard
+          </button>
           <button 
-  onClick={() => {
-    console.log('🔴 END SESSION BUTTON CLICKED!'); // This should appear immediately
-    endSession();
-  }} 
-  className="end-session-button"
->
-  End Session
-</button>
+            onClick={() => window.location.reload()} 
+            className="secondary-button"
+          >
+            Practice Again
+          </button>
         </div>
       </div>
-
+    </div>
+  );
+}
       <div className="video-container" ref={callFrameRef}>
         {/* Daily.co video will appear here */}
       </div>
