@@ -218,42 +218,20 @@ const VideoSession = ({ user }) => {
   };
 
 const endSession = async () => {
+  alert('End session function called!'); // This should show immediately
+  console.log('🔴 END SESSION FUNCTION STARTED');
+  
   try {
-    setLoading(true);
+    console.log('🔴 About to cleanup and redirect');
     cleanup();
-
-    const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
-
-    const token = await user.getIdToken();
-    const response = await axios.post(
-      `${API_BASE_URL}/api/sessions/end`,
-      {
-        sessionId: sessionId,
-        transcript: transcript,
-        duration: duration,
-        conversationHistory: conversation
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    setFeedback(response.data.analysis);
-    setLoading(false);
-
-    // Fallback: if feedback doesn't show after 5 seconds, go to dashboard
-    setTimeout(() => {
-      if (!feedback) {
-        console.log('⚠️ Feedback not showing, redirecting to dashboard');
-        navigate('/dashboard');
-      }
-    }, 5000);
-
-  } catch (error) {
-    console.error('Error ending session:', error);
     
-    // If session ending fails, just go back to dashboard
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 2000);
+    // Simple immediate redirect for testing
+    console.log('🔴 Navigating to dashboard');
+    navigate('/dashboard');
+    
+  } catch (error) {
+    console.log('🔴 Error in endSession:', error);
+    alert('Error: ' + error.message);
   }
 };
 
@@ -269,9 +247,15 @@ const endSession = async () => {
             {isAISpeaking && <span>🗣️ Sarah is speaking...</span>}
             {isRecording && !isAISpeaking && <span>🎤 Listening...</span>}
           </div>
-          <button onClick={endSession} className="end-session-button">
-            End Session
-          </button>
+          <button 
+  onClick={() => {
+    console.log('🔴 END SESSION BUTTON CLICKED!'); // This should appear immediately
+    endSession();
+  }} 
+  className="end-session-button"
+>
+  End Session
+</button>
         </div>
       </div>
 
