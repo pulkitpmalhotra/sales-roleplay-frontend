@@ -19,22 +19,26 @@ const Dashboard = ({ user }) => {
   }, []);
 
   const loadData = async () => {
-    try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const token = await user.getIdToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    console.log('Making API calls with token:', token.substring(0, 20) + '...'); // Debug
 
-      const [scenariosRes, sessionsRes] = await Promise.all([
-        axios.get(`${API_BASE_URL}/api/scenarios`, { headers }),
-        axios.get(`${API_BASE_URL}/api/sessions/history`, { headers })
-      ]);
+    const [scenariosRes, sessionsRes] = await Promise.all([
+      axios.get(`${API_BASE_URL}/api/scenarios`, { headers }),
+      axios.get(`${API_BASE_URL}/api/sessions/history`, { headers })
+    ]);
 
-      setScenarios(scenariosRes.data);
-      setSessions(sessionsRes.data);
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-    setLoading(false);
-  };
+    console.log('Scenarios response:', scenariosRes.data); // Debug
+    console.log('Sessions response:', sessionsRes.data); // Debug
+
+    setScenarios(scenariosRes.data);
+    setSessions(sessionsRes.data);
+  } catch (error) {
+    console.error('Error loading data:', error);
+  }
+  setLoading(false);
+};
 
   const handleLogout = async () => {
     try {
