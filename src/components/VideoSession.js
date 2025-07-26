@@ -274,29 +274,6 @@ const endSession = async () => {
           </button>
         </div>
       </div>
-
-      <div className="video-container" ref={callFrameRef}>
-        {/* Daily.co video will appear here */}
-      </div>
-
-      <div className="session-info">
-        <div className="conversation-section">
-          <h3>Live Conversation</h3>
-          <div className="conversation-box">
-            {conversation.map((msg, index) => (
-              <div key={index} className={`message ${msg.speaker}`}>
-                <strong>{msg.speaker === 'user' ? 'You' : 'Sarah'}:</strong> {msg.message}
-              </div>
-            ))}
-            {conversation.length === 0 && (
-              <p>Conversation will appear here as you talk with Sarah...</p>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
 // At the end of your VideoSession component, make sure you have:
 if (loading && !feedback) {
   return (
@@ -371,4 +348,27 @@ if (feedback) {
     </div>
   );
 }
+      <div className="video-container" ref={callFrameRef}>
+        {/* Daily.co video will appear here */}
+      </div>
+
+      <div className="session-info">
+        <div className="conversation-section">
+          <h3>Live Conversation</h3>
+          <div className="conversation-box">
+            {conversation.map((msg, index) => (
+              <div key={index} className={`message ${msg.speaker}`}>
+                <strong>{msg.speaker === 'user' ? 'You' : 'Sarah'}:</strong> {msg.message}
+              </div>
+            ))}
+            {conversation.length === 0 && (
+              <p>Conversation will appear here as you talk with Sarah...</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default VideoSession;
