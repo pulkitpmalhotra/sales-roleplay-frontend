@@ -298,5 +298,78 @@ const endSession = async () => {
     </div>
   );
 };
+// At the end of your VideoSession component, make sure you have:
+if (loading && !feedback) {
+  return (
+    <div className="session-loading">
+      <div className="loading-spinner"></div>
+      <p>Ending your session and generating feedback...</p>
+    </div>
+  );
+}
 
+if (error) {
+  return (
+    <div className="session-error">
+      <h2>Session Error</h2>
+      <p>{error}</p>
+      <button onClick={goToDashboard} className="back-button">
+        Back to Dashboard
+      </button>
+    </div>
+  );
+}
+
+// This is the key part - make sure this exists and works
+if (feedback) {
+  return (
+    <div className="feedback-container">
+      <div className="feedback-card">
+        <h2>🎉 Session Complete!</h2>
+        <p>Here's your performance analysis:</p>
+        
+        <div className="metrics-grid">
+          <div className="metric">
+            <h3>Talk Time</h3>
+            <div className="metric-value">{feedback.talkTimeRatio || 50}%</div>
+            <p>Percentage of time you were speaking</p>
+          </div>
+          
+          <div className="metric">
+            <h3>Confidence</h3>
+            <div className="metric-value">{feedback.confidenceScore || 75}/100</div>
+            <p>Based on speech patterns</p>
+          </div>
+          
+          <div className="metric">
+            <h3>Conversation Length</h3>
+            <div className="metric-value">{feedback.conversationLength || conversation.length}</div>
+            <p>Number of exchanges</p>
+          </div>
+        </div>
+
+        {feedback.aiFeedback && (
+          <div className="ai-feedback-section">
+            <h3>🤖 AI Coach Feedback</h3>
+            <div className="ai-feedback-text">
+              {feedback.aiFeedback}
+            </div>
+          </div>
+        )}
+
+        <div className="feedback-actions">
+          <button onClick={goToDashboard} className="primary-button">
+            Back to Dashboard
+          </button>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="secondary-button"
+          >
+            Practice Again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 export default VideoSession;
