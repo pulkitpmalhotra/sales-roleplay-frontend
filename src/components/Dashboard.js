@@ -328,22 +328,42 @@ const viewSessionDetails = async (sessionId) => {
    </div> 
 </main>
       </div>
-  {showSessionDetails && selectedSession && (
-        <div className="modal-overlay" onClick={() => setShowSessionDetails(false)}>
-          <div className="session-details-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>{selectedSession.scenario?.title}</h3>
-              <button 
-                className="close-modal-btn"
-                onClick={() => setShowSessionDetails(false)}
-              >
-                ×
-              </button>
+  return (
+  <div className="dashboard">
+    <header className="dashboard-header">
+      {/* header content */}
+    </header>
+
+    <div className="dashboard-content">
+      {/* navigation and main content */}
+      
+      {activeTab === 'scenarios' && (
+        <div className="scenarios-section">
+          {/* scenarios content */}
+        </div>
+      )}
+
+      {activeTab === 'history' && (
+        <div className="history-section">
+          {/* history content */}
+        </div>
+      )}
     </div>
-  )}
-);
-            
-            <div className="modal-content">
+
+    {/* Modal INSIDE the main dashboard div */}
+    {showSessionDetails && selectedSession && (
+      <div className="modal-overlay" onClick={() => setShowSessionDetails(false)}>
+        <div className="session-details-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h3>{selectedSession.scenario?.title}</h3>
+            <button 
+              className="close-modal-btn"
+              onClick={() => setShowSessionDetails(false)}
+            >
+              ×
+            </button>
+          </div>
+<div className="modal-content">
               <div className="session-overview">
                 <div className="overview-stat">
                   <strong>Duration:</strong> {Math.round(selectedSession.session.duration / 60000)} minutes
@@ -353,8 +373,13 @@ const viewSessionDetails = async (sessionId) => {
                 </div>
                 <div className="overview-stat">
                   <strong>Status:</strong> {selectedSession.session.status}
-                </div>
-              </div>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
+);
+            
               
               {selectedSession.feedback && (
                 <div className="detailed-metrics">
