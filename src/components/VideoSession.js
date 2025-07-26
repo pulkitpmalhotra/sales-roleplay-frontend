@@ -292,54 +292,60 @@ const VideoSession = ({ user }) => {
 
   // End session
   const endSession = async () => {
-    try {
-      setIsEndingSession(true);
-      cleanup();
+  try {
+    console.log('🔍 ===== FRONTEND END SESSION DEBUG =====');
+    setIsEndingSession(true);
+    cleanup();
 
-      const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+    const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
 
-      console.log('🔍 Ending session with data:', {
-        sessionId,
-        duration,
-        conversationLength: conversation.length
-      });
+    console.log('🔍 Session data being sent:', {
+      sessionId,
+      duration,
+      conversationLength: conversation.length,
+      transcriptLength: transcript.length
+    });
 
-      const token = await user.getIdToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/api/sessions/end`,
-        {
-          sessionId: sessionId,
-          transcript: transcript,
-          duration: duration,
-          conversationHistory: conversation
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    const token = await user.getIdToken();
+    console.log('🔍 Making request to end session...');
+    
+    const response = await axios.post(
+      `${API_BASE_URL}/api/sessions/end`,
+      {
+        sessionId: sessionId,
+        transcript: transcript,
+        duration: duration,
+        conversationHistory: conversation
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      console.log('✅ Full backend response:', response);
-      console.log('✅ Response data:', response.data);
-      console.log('✅ Analysis object:', response.data.analysis);
+    console.log('✅ Backend response received');
+    console.log('✅ Response status:', response.status);
+    console.log('✅ Response data:', response.data);
+    console.log('✅ Analysis in response:', response.data?.analysis);
 
-      if (response.data && response.data.analysis) {
-        setFeedback(response.data.analysis);
-        console.log('✅ Feedback state set successfully');
-      } else {
-        console.error('❌ No analysis in response');
-        // Fallback - go to dashboard if no feedback
-        setTimeout(() => navigate('/dashboard'), 2000);
-      }
-      
-      setIsEndingSession(false);
-
-    } catch (error) {
-      console.error('❌ Error ending session:', error);
-      console.error('❌ Error response:', error.response?.data);
-      setIsEndingSession(false);
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+    if (response.data && response.data.analysis) {
+      console.log('✅ Setting feedback state...');
+      setFeedback(response.data.analysis);
+      console.log('✅ Feedback state set - should show feedback screen now');
+    } else {
+      console.error('❌ No analysis in response - redirecting to dashboard');
+      setTimeout(() => navigate('/dashboard'), 2000);
     }
-  };
+    
+    setIsEndingSession(false);
+    console.log('🔍 ===== FRONTEND END SESSION COMPLETE =====');
+
+  } catch (error) {
+    console.error('❌ Frontend error ending session:', error);
+    console.error('❌ Error response data:', error.response?.data);
+    setIsEndingSession(false);
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 2000);
+  }
+};
 
   // Component lifecycle
   useEffect(() => {
