@@ -288,4 +288,310 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding
+  padding: 20px;
+}
+
+.feedback-card {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
+  max-width: 800px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.feedback-card h2 {
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+
+.metric {
+  text-align: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.metric h3 {
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+.metric h4 {
+  color: #333;
+  margin-bottom: 12px;
+  font-size: 16px;
+}
+
+.score-circle {
+  font-size: 32px;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 8px;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 8px;
+}
+
+.metric p {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+}
+
+.ai-feedback-section {
+  background: #f8f9fa;
+  padding: 24px;
+  border-radius: 12px;
+  margin: 24px 0;
+  text-align: left;
+}
+
+.ai-feedback-section h3 {
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.ai-feedback-text {
+  color: #666;
+  line-height: 1.6;
+}
+
+.feedback-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.primary-button {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.primary-button:hover {
+  background: #45a049;
+}
+
+.secondary-button {
+  background: transparent;
+  color: #4CAF50;
+  border: 2px solid #4CAF50;
+  padding: 10px 22px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s;
+}
+
+.secondary-button:hover {
+  background: #4CAF50;
+  color: white;
+}
+
+.ai-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #ffd700;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.conversation-section {
+  margin-top: 20px;
+}
+
+.conversation-box {
+  background: #2a2a2a;
+  border: 2px solid #444;
+  border-radius: 8px;
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.message {
+  margin-bottom: 12px;
+  padding: 8px;
+  border-radius: 6px;
+}
+
+.message.user {
+  background: rgba(102, 126, 234, 0.2);
+  border-left: 3px solid #667eea;
+}
+
+.message.ai {
+  background: rgba(76, 175, 80, 0.2);
+  border-left: 3px solid #4caf50;
+}
+
+.message strong {
+  color: #fff;
+  margin-right: 8px;
+}
+
+/* Google Ads Video Session Styling */
+.session-header.google-ads {
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  border-bottom: 3px solid #4285f4;
+}
+
+.session-title {
+  flex: 1;
+}
+
+.end-session-button {
+  background: linear-gradient(135deg, #ea4335 0%, #d32f2f 100%);
+  transition: all 0.3s ease;
+}
+
+.end-session-button:hover {
+  background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+  transform: translateY(-1px);
+}
+
+/* Google Ads Metrics Styling */
+.google-ads-metrics {
+  margin: 20px 0;
+}
+
+.metric-category h3 {
+  color: #1976d2;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.google-ads-concepts {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.google-ads-concepts h4 {
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.concepts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.concept-tag {
+  background: #4285f4;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.coaching-recommendations {
+  margin: 20px 0;
+  padding: 20px;
+  background: #fff3cd;
+  border-radius: 12px;
+  text-align: left;
+}
+
+.coaching-recommendations h4 {
+  color: #856404;
+  margin-bottom: 15px;
+}
+
+.coaching-recommendations ul {
+  color: #856404;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.coaching-recommendations li {
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .session-header {
+    flex-direction: column;
+    gap: 16px;
+    text-align: center;
+  }
+  
+  .session-context {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .session-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .ai-avatar {
+    padding: 20px;
+    gap: 15px;
+  }
+  
+  .avatar-image {
+    width: 100px;
+    height: 100px;
+  }
+  
+  .avatar-placeholder {
+    font-size: 36px;
+  }
+  
+  .character-name {
+    font-size: 20px;
+  }
+  
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .feedback-actions {
+    flex-direction: column;
+  }
+  
+  .concepts-list {
+    gap: 6px;
+  }
+  
+  .concept-tag {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
