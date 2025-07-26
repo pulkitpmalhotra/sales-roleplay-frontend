@@ -40,7 +40,7 @@ const VideoSession = ({ user }) => {
     navigate('/dashboard');
   };
 
-  // Cleanup function
+  // Cleanup function with better speech recognition handling
   const cleanup = () => {
     console.log('🧹 Starting cleanup...');
     
@@ -53,14 +53,23 @@ const VideoSession = ({ user }) => {
     // Stop Daily.co call
     if (callObject) {
       console.log('🧹 Destroying Daily.co call');
-      callObject.destroy();
+      try {
+        callObject.destroy();
+      } catch (e) {
+        console.log('🧹 Error destroying call object:', e);
+      }
       setCallObject(null);
     }
     
     // Stop speech recognition
     if (recognitionRef.current) {
       console.log('🧹 Stopping speech recognition');
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current.abort();
+      } catch (e) {
+        console.log('🧹 Error stopping speech recognition:', e);
+      }
       recognitionRef.current = null;
       setIsRecording(false);
     }
@@ -68,8 +77,12 @@ const VideoSession = ({ user }) => {
     // Stop speech synthesis
     if (window.speechSynthesis) {
       console.log('🧹 Stopping speech synthesis');
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.pause();
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.pause();
+      } catch (e) {
+        console.log('🧹 Error stopping speech synthesis:', e);
+      }
     }
     
     // Clear speech synthesis ref
@@ -208,13 +221,19 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Speech recognition with improved logic
+  // Speech recognition with improved error handling
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        console.log('🎤 Speech recognition started');
+        setIsRecording(true);
+      };
 
       recognition.onresult = (event) => {
         // Only process speech if AI is not speaking and we're not already processing
@@ -223,9 +242,14 @@ const VideoSession = ({ user }) => {
         }
 
         let finalTranscript = '';
+        let interimTranscript = '';
+        
         for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
+            finalTranscript += transcript + ' ';
+          } else {
+            interimTranscript += transcript;
           }
         }
         
@@ -234,7 +258,7 @@ const VideoSession = ({ user }) => {
           console.log('🎤 User speech detected:', cleanedText);
           
           // Update buffer and timestamp
-          setUserSpeechBuffer(prev => prev + ' ' + cleanedText);
+          setUserSpeechBuffer(prev => (prev + ' ' + cleanedText).trim());
           setLastUserSpeechTime(Date.now());
           
           // Clear existing timeout
@@ -250,42 +274,91 @@ const VideoSession = ({ user }) => {
       };
 
       recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'not-allowed') {
-          setError('Microphone access denied. Please allow microphone access and refresh.');
+        console.log('🎤 Speech recognition error:', event.error);
+        
+        switch (event.error) {
+          case 'no-speech':
+            console.log('🎤 No speech detected - this is normal, continuing...');
+            // Don't treat this as an error, just continue
+            break;
+          case 'audio-capture':
+            console.error('❌ Audio capture error - microphone issue');
+            setError('Microphone not accessible. Please check your microphone and try again.');
+            break;
+          case 'not-allowed':
+            console.error('❌ Microphone permission denied');
+            setError('Microphone access denied. Please allow microphone access and refresh.');
+            break;
+          case 'network':
+            console.error('❌ Network error during speech recognition');
+            // Just continue, don't show error to user
+            break;
+          case 'service-not-allowed':
+            console.error('❌ Speech recognition service not allowed');
+            setError('Speech recognition service not available. Please try again.');
+            break;
+          default:
+            console.log(`🎤 Speech recognition error: ${event.error} - continuing...`);
+            // For other errors, just log and continue
+            break;
         }
       };
 
       recognition.onend = () => {
-        // Restart recognition if not manually stopped
-        if (recognitionRef.current && !isEndingSession) {
+        console.log('🎤 Speech recognition ended');
+        
+        // Only restart if we haven't manually stopped and session isn't ending
+        if (recognitionRef.current && !isEndingSession && !error) {
+          console.log('🎤 Restarting speech recognition...');
           setTimeout(() => {
-            if (recognitionRef.current) {
-              recognition.start();
+            if (recognitionRef.current && !isEndingSession) {
+              try {
+                recognition.start();
+              } catch (e) {
+                console.log('🎤 Could not restart recognition immediately, trying again...');
+                setTimeout(() => {
+                  if (recognitionRef.current && !isEndingSession) {
+                    try {
+                      recognition.start();
+                    } catch (e2) {
+                      console.error('❌ Failed to restart speech recognition:', e2);
+                    }
+                  }
+                }, 1000);
+              }
             }
           }, 100);
         }
       };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-      setIsRecording(true);
+      try {
+        recognitionRef.current = recognition;
+        recognition.start();
+        console.log('🎤 Starting speech recognition...');
+      } catch (e) {
+        console.error('❌ Failed to start speech recognition:', e);
+        setError('Could not start speech recognition. Please refresh and try again.');
+      }
     } else {
       setError('Speech recognition not supported in this browser. Please use Chrome.');
     }
   };
 
-  // Process accumulated user speech
+  // Process accumulated user speech with better error handling
   const processUserSpeech = async () => {
     const currentBuffer = userSpeechBuffer.trim();
     
-    if (!currentBuffer || currentBuffer.length < 10 || isProcessingUserSpeech.current) {
+    if (!currentBuffer || currentBuffer.length < 5 || isProcessingUserSpeech.current) {
+      console.log('🎯 Skipping speech processing:', { 
+        bufferLength: currentBuffer.length, 
+        isProcessing: isProcessingUserSpeech.current 
+      });
       return;
     }
 
     console.log('🎯 Processing user speech:', currentBuffer);
     isProcessingUserSpeech.current = true;
-    setUserSpeechBuffer(''); // Clear buffer
+    setUserSpeechBuffer(''); // Clear buffer immediately
     setWaitingForAI(true);
 
     try {
@@ -294,6 +367,8 @@ const VideoSession = ({ user }) => {
       setTranscript(prev => prev + currentBuffer + ' ');
       
       const token = await user.getIdToken();
+      console.log('🔄 Sending to AI backend...');
+      
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
         {
@@ -302,28 +377,47 @@ const VideoSession = ({ user }) => {
           scenarioId: scenarioId,
           conversationHistory: conversation
         },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 15000 // 15 second timeout
+        }
       );
       
       const aiResponse = response.data.response;
-      console.log('🤖 AI response received:', aiResponse);
+      console.log('🤖 AI response received:', aiResponse.substring(0, 50) + '...');
       
-      addToConversation('ai', aiResponse);
-      setWaitingForAI(false);
-      
-      // Small delay before AI responds (more natural)
-      setTimeout(() => {
-        speakText(aiResponse);
-      }, 1000);
+      if (aiResponse && aiResponse.trim()) {
+        addToConversation('ai', aiResponse);
+        setWaitingForAI(false);
+        
+        // Small delay before AI responds (more natural)
+        setTimeout(() => {
+          speakText(aiResponse);
+        }, 800);
+      } else {
+        throw new Error('Empty AI response');
+      }
       
     } catch (error) {
       console.error('❌ Error getting AI response:', error);
       setWaitingForAI(false);
       
-      // Fallback response
-      const fallbackResponse = "I'm sorry, could you repeat that? I didn't catch what you said.";
+      // Fallback responses based on error type
+      let fallbackResponse;
+      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        fallbackResponse = "I'm sorry, I need a moment to process that. Could you repeat your question?";
+      } else if (error.response?.status === 404) {
+        fallbackResponse = "I'm having trouble understanding. Could you rephrase that?";
+      } else {
+        fallbackResponse = "I'm sorry, could you say that again? I want to make sure I understand correctly.";
+      }
+      
       addToConversation('ai', fallbackResponse);
-      speakText(fallbackResponse);
+      
+      setTimeout(() => {
+        speakText(fallbackResponse);
+      }, 500);
+      
     } finally {
       isProcessingUserSpeech.current = false;
     }
@@ -564,7 +658,7 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="video-container" ref={callFrameRef}>
-        {/* AI Avatar Overlay */}
+          {/* AI Avatar Overlay */}
         <div className="ai-avatar-overlay">
           <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
             <div className="avatar-image">
@@ -577,6 +671,12 @@ const VideoSession = ({ user }) => {
               <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
               {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
               {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
+              {!isAISpeaking && !waitingForAI && isRecording && (
+                <div className="listening-indicator">Listening...</div>
+              )}
+              {!isRecording && !isAISpeaking && !waitingForAI && (
+                <div className="ready-indicator">Ready to talk</div>
+              )}
             </div>
           </div>
         </div>
