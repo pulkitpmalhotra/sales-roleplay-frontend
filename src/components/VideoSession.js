@@ -286,7 +286,7 @@ const endSession = async () => {
   </div>
 </div>
         // Update feedback display in VideoSession.js
-if (feedback) {
+
   return (
     <div className="feedback-container google-ads">
       <div className="feedback-card">
