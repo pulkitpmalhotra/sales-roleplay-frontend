@@ -273,3 +273,29 @@
   color: #fff;
   margin-right: 8px;
 }
+/* Google Ads Video Session Styling */
+.session-header.google-ads {
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  border-bottom: 3px solid #4285f4;
+}
+
+.session-title {
+  flex: 1;
+}
+
+.session-controls .ai-status {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 8px 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.end-session-button {
+  background: linear-gradient(135deg, #ea4335 0%, #d32f2f 100%);
+  transition: all 0.3s ease;
+}
+
+.end-session-button:hover {
+  background: linear-gradient(135deg, #d32f2f 0%, #c62828 100%);
+  transform: translateY(-1px);
+}
