@@ -599,7 +599,6 @@ const testSpeech = () => {
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
             {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
-              <button onClick={testSpeech} className="test-button">🔊 Test Speech</button>
           </div>
           <button onClick={endSession} className="end-session-button">
             End Google Ads Practice
