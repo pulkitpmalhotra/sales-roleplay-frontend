@@ -146,11 +146,38 @@ const VideoSession = ({ user }) => {
 
   // AI character introduction
   const introduceAICharacter = () => {
-    const introduction = `Hi there! I'm ${scenarioData?.ai_character_name || 'Sarah Mitchell'}, ${scenarioData?.ai_character_role || 'IT Director'}. I'm pretty busy today, so let's see what you've got. What company are you calling from?`;
-    
-    addToConversation('ai', introduction);
-    speakText(introduction);
-  };
+  // Get character details from scenario
+  const characterName = scenarioData?.ai_character_name || 'Sarah Mitchell';
+  const characterRole = scenarioData?.ai_character_role || 'IT Director';
+  const characterPersonality = scenarioData?.ai_character_personality || 'Busy, professional';
+  const characterBackground = scenarioData?.ai_character_background || 'Works at a tech company';
+  const salesSkillArea = scenarioData?.sales_skill_area || 'Sales Practice';
+  
+  // Create personality-based introduction
+  let introduction = '';
+  
+  // Different introductions based on skill area and personality
+  if (salesSkillArea === 'Prospecting & Outreach') {
+    if (characterPersonality.toLowerCase().includes('busy') || characterPersonality.toLowerCase().includes('skeptical')) {
+      introduction = `Hello, this is ${characterName}, ${characterRole}. I have to say, I'm quite busy right now and wasn't expecting a call. You have about 2 minutes of my attention - what's this about?`;
+    } else {
+      introduction = `Hi there! ${characterName} here, I'm the ${characterRole}. I have a few minutes - what can I help you with today?`;
+    }
+  } else if (salesSkillArea === 'Objection Handling') {
+    introduction = `${characterName} speaking. Look, I'll be honest with you - I've heard pitches like this before and frankly, I'm not convinced. But go ahead, try to change my mind.`;
+  } else if (salesSkillArea === 'Discovery & Consultative Selling') {
+    introduction = `Hi, I'm ${characterName}, ${characterRole}. I'm interested in hearing what you have to offer, but I need to understand how this actually helps my business. What do you need to know about us?`;
+  } else if (salesSkillArea === 'Pitching & Presenting') {
+    introduction = `${characterName} here. I've been looking into solutions like yours. I have some time now - show me what you've got and why I should care.`;
+  } else {
+    // Default introduction
+    introduction = `Hi there! I'm ${characterName}, ${characterRole} here. ${characterBackground.split('.')[0]}. What company are you calling from?`;
+  }
+  
+  console.log('🎭 AI Character Introduction:', introduction);
+  addToConversation('ai', introduction);
+  speakText(introduction);
+};
 
   // Speech recognition
   const startSpeechRecognition = () => {
@@ -307,7 +334,7 @@ const VideoSession = ({ user }) => {
     return (
       <div className="session-loading">
         <div className="loading-spinner"></div>
-        <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
+        <p>{sessionId ? 'Ending your practice session...' : 'Initializing...'}</p>
       </div>
     );
   }
