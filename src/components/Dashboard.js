@@ -325,7 +325,7 @@ const viewSessionDetails = async (sessionId) => {
     )}
   </div>
 )}
-        </main>
+</main>
       </div>
   {showSessionDetails && selectedSession && (
         <div className="modal-overlay" onClick={() => setShowSessionDetails(false)}>
