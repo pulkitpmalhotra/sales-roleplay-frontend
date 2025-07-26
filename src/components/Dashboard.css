@@ -529,7 +529,121 @@
 .ai-message {
   color: #28a745;
 }
+/* Google Ads Specific Styling */
+.scenario-card.google-ads {
+  border-left: 4px solid #4285f4;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+}
 
+.skill-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.skill-badge.prospecting-outreach { background: #e3f2fd; color: #1976d2; }
+.skill-badge.discovery-consultative-selling { background: #f3e5f5; color: #7b1fa2; }
+.skill-badge.objection-handling { background: #fff3e0; color: #f57c00; }
+.skill-badge.pitching-presenting { background: #e8f5e8; color: #388e3c; }
+.skill-badge.optimization-renewals { background: #fce4ec; color: #c2185b; }
+
+.scenario-details {
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.detail-row {
+  margin-bottom: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+.start-button.google-ads {
+  background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+/* Google Ads Feedback Styling */
+.feedback-container.google-ads {
+  background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+}
+
+.google-ads-metrics {
+  margin: 24px 0;
+}
+
+.metric-category h3 {
+  color: #1976d2;
+  margin-bottom: 16px;
+  border-bottom: 2px solid #e3f2fd;
+  padding-bottom: 8px;
+}
+
+.score-circle {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4285f4, #34a853);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 16px;
+  margin: 8px auto;
+}
+
+.concepts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.concept-tag {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.coaching-recommendations ul {
+  list-style: none;
+  padding: 0;
+}
+
+.coaching-recommendations li {
+  background: #f8f9fa;
+  margin: 8px 0;
+  padding: 12px;
+  border-left: 4px solid #4285f4;
+  border-radius: 4px;
+}
+
+.session-context {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.session-context span {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+}
 /* Responsive Design */
 @media (max-width: 768px) {
   .sessions-grid {
