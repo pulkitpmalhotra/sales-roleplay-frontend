@@ -99,34 +99,16 @@ const VideoSession = ({ user }) => {
       );
 
       // Start session
-      app.post('/api/sessions/start', authenticateToken, async (req, res) => {
-  try {
-    const { scenarioId, roomUrl } = req.body;
-    
-    const sessionId = `session_${Date.now()}_${req.user.uid}`;
-    console.log('🔍 Creating session:', sessionId);
-    
-    const sessionsSheet = doc.sheetsByTitle['Sessions'];
-    const session = await sessionsSheet.addRow({
-      id: sessionId,
-      userId: req.user.uid,
-      scenarioId: scenarioId,
-      roomUrl: roomUrl,
-      startTime: new Date().toISOString(),
-      status: 'active'
-    });
-    
-    console.log('✅ Session created:', sessionId);
-    
-    res.json({
-      sessionId: sessionId,
-      status: 'started'
-    });
-  } catch (error) {
-    console.error('❌ Error starting session:', error);
-    res.status(500).json({ error: 'Failed to start session' });
-  }
-});
+      const sessionResponse = await axios.post(
+        `${API_BASE_URL}/api/sessions/start`,
+        {
+          scenarioId: scenarioId,
+          roomUrl: roomResponse.data.roomUrl
+        },
+        { headers }
+      );
+
+      setSessionId(sessionResponse.data.sessionId);
       
       // Initialize Daily.co call
       const daily = DailyIframe.createCallObject({
@@ -165,38 +147,38 @@ const VideoSession = ({ user }) => {
 
   // AI character introduction
   const introduceAICharacter = () => {
-  // Get character details from scenario
-  const characterName = scenarioData?.ai_character_name || 'Sarah Mitchell';
-  const characterRole = scenarioData?.ai_character_role || 'IT Director';
-  const characterPersonality = scenarioData?.ai_character_personality || 'Busy, professional';
-  const characterBackground = scenarioData?.ai_character_background || 'Works at a tech company';
-  const salesSkillArea = scenarioData?.sales_skill_area || 'Sales Practice';
-  
-  // Create personality-based introduction
-  let introduction = '';
-  
-  // Different introductions based on skill area and personality
-  if (salesSkillArea === 'Prospecting & Outreach') {
-    if (characterPersonality.toLowerCase().includes('busy') || characterPersonality.toLowerCase().includes('skeptical')) {
-      introduction = `Hello, this is ${characterName}, ${characterRole}. I have to say, I'm quite busy right now and wasn't expecting a call. You have about 2 minutes of my attention - what's this about?`;
+    // Get character details from scenario
+    const characterName = scenarioData?.ai_character_name || 'Sarah Mitchell';
+    const characterRole = scenarioData?.ai_character_role || 'IT Director';
+    const characterPersonality = scenarioData?.ai_character_personality || 'Busy, professional';
+    const characterBackground = scenarioData?.ai_character_background || 'Works at a tech company';
+    const salesSkillArea = scenarioData?.sales_skill_area || 'Sales Practice';
+    
+    // Create personality-based introduction
+    let introduction = '';
+    
+    // Different introductions based on skill area and personality
+    if (salesSkillArea === 'Prospecting & Outreach') {
+      if (characterPersonality.toLowerCase().includes('busy') || characterPersonality.toLowerCase().includes('skeptical')) {
+        introduction = `Hello, this is ${characterName}, ${characterRole}. I have to say, I'm quite busy right now and wasn't expecting a call. You have about 2 minutes of my attention - what's this about?`;
+      } else {
+        introduction = `Hi there! ${characterName} here, I'm the ${characterRole}. I have a few minutes - what can I help you with today?`;
+      }
+    } else if (salesSkillArea === 'Objection Handling') {
+      introduction = `${characterName} speaking. Look, I'll be honest with you - I've heard pitches like this before and frankly, I'm not convinced. But go ahead, try to change my mind.`;
+    } else if (salesSkillArea === 'Discovery & Consultative Selling') {
+      introduction = `Hi, I'm ${characterName}, ${characterRole}. I'm interested in hearing what you have to offer, but I need to understand how this actually helps my business. What do you need to know about us?`;
+    } else if (salesSkillArea === 'Pitching & Presenting') {
+      introduction = `${characterName} here. I've been looking into solutions like yours. I have some time now - show me what you've got and why I should care.`;
     } else {
-      introduction = `Hi there! ${characterName} here, I'm the ${characterRole}. I have a few minutes - what can I help you with today?`;
+      // Default introduction
+      introduction = `Hi there! I'm ${characterName}, ${characterRole} here. ${characterBackground.split('.')[0]}. What company are you calling from?`;
     }
-  } else if (salesSkillArea === 'Objection Handling') {
-    introduction = `${characterName} speaking. Look, I'll be honest with you - I've heard pitches like this before and frankly, I'm not convinced. But go ahead, try to change my mind.`;
-  } else if (salesSkillArea === 'Discovery & Consultative Selling') {
-    introduction = `Hi, I'm ${characterName}, ${characterRole}. I'm interested in hearing what you have to offer, but I need to understand how this actually helps my business. What do you need to know about us?`;
-  } else if (salesSkillArea === 'Pitching & Presenting') {
-    introduction = `${characterName} here. I've been looking into solutions like yours. I have some time now - show me what you've got and why I should care.`;
-  } else {
-    // Default introduction
-    introduction = `Hi there! I'm ${characterName}, ${characterRole} here. ${characterBackground.split('.')[0]}. What company are you calling from?`;
-  }
-  
-  console.log('🎭 AI Character Introduction:', introduction);
-  addToConversation('ai', introduction);
-  speakText(introduction);
-};
+    
+    console.log('🎭 AI Character Introduction:', introduction);
+    addToConversation('ai', introduction);
+    speakText(introduction);
+  };
 
   // Speech recognition
   const startSpeechRecognition = () => {
@@ -309,55 +291,56 @@ const VideoSession = ({ user }) => {
   };
 
   // End session
-const endSession = async () => {
-  try {
-    setIsEndingSession(true);
-    cleanup();
+  const endSession = async () => {
+    try {
+      setIsEndingSession(true);
+      cleanup();
 
-    const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+      const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
 
-    console.log('🔍 Ending session with data:', {
-      sessionId,
-      duration,
-      conversationLength: conversation.length
-    });
+      console.log('🔍 Ending session with data:', {
+        sessionId,
+        duration,
+        conversationLength: conversation.length
+      });
 
-    const token = await user.getIdToken();
-    const response = await axios.post(
-      `${API_BASE_URL}/api/sessions/end`,
-      {
-        sessionId: sessionId,
-        transcript: transcript,
-        duration: duration,
-        conversationHistory: conversation
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+      const token = await user.getIdToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/api/sessions/end`,
+        {
+          sessionId: sessionId,
+          transcript: transcript,
+          duration: duration,
+          conversationHistory: conversation
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-    console.log('✅ Full backend response:', response);
-    console.log('✅ Response data:', response.data);
-    console.log('✅ Analysis object:', response.data.analysis);
+      console.log('✅ Full backend response:', response);
+      console.log('✅ Response data:', response.data);
+      console.log('✅ Analysis object:', response.data.analysis);
 
-    if (response.data && response.data.analysis) {
-      setFeedback(response.data.analysis);
-      console.log('✅ Feedback state set successfully');
-    } else {
-      console.error('❌ No analysis in response');
-      // Fallback - go to dashboard if no feedback
-      setTimeout(() => navigate('/dashboard'), 2000);
+      if (response.data && response.data.analysis) {
+        setFeedback(response.data.analysis);
+        console.log('✅ Feedback state set successfully');
+      } else {
+        console.error('❌ No analysis in response');
+        // Fallback - go to dashboard if no feedback
+        setTimeout(() => navigate('/dashboard'), 2000);
+      }
+      
+      setIsEndingSession(false);
+
+    } catch (error) {
+      console.error('❌ Error ending session:', error);
+      console.error('❌ Error response:', error.response?.data);
+      setIsEndingSession(false);
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
     }
-    
-    setIsEndingSession(false);
+  };
 
-  } catch (error) {
-    console.error('❌ Error ending session:', error);
-    console.error('❌ Error response:', error.response?.data);
-    setIsEndingSession(false);
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 2000);
-  }
-};
   // Component lifecycle
   useEffect(() => {
     initializeSession();
@@ -365,181 +348,27 @@ const endSession = async () => {
       cleanup();
     };
   }, []);
-app.post('/api/sessions/end', authenticateToken, async (req, res) => {
-  try {
-    const { sessionId, transcript, duration, conversationHistory = [] } = req.body;
-    
-    console.log('🔍 Ending session:', sessionId, 'for user:', req.user.uid);
-    console.log('🔍 Session data:', { duration, conversationLength: conversationHistory.length });
-    
-    // Redact PII from transcript
-    const redactedTranscript = redactPII(transcript || '');
-    
-    // Basic analysis
-    function analyzeSession(transcript, conversationHistory = []) {
-  console.log('🔍 Analyzing session with conversation length:', conversationHistory.length);
-  
-  if (!transcript && conversationHistory.length === 0) {
-    return {
-      talkTimeRatio: 50,
-      fillerWordCount: 0,
-      confidenceScore: 50,
-      wordCount: 0,
-      averageSentenceLength: 0,
-      conversationLength: 0
-    };
-  }
-  
-  // Use conversation history if available, fallback to transcript
-  let textToAnalyze = transcript;
-  if (conversationHistory.length > 0) {
-    textToAnalyze = conversationHistory
-      .filter(msg => msg.speaker === 'user')
-      .map(msg => msg.message)
-      .join(' ');
-  }
-  
-  const words = textToAnalyze.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-  const sentences = textToAnalyze.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  
-  // Count filler words
-  const fillerWords = ['um', 'uh', 'like', 'you know', 'basically', 'literally', 'actually'];
-  const fillerWordCount = words.filter(word => 
-    fillerWords.some(filler => word.includes(filler))
-  ).length;
-  
-  // Calculate confidence score (inverse relationship with filler words)
-  const fillerRatio = words.length > 0 ? fillerWordCount / words.length : 0;
-  const confidenceScore = Math.max(20, Math.min(100, 100 - (fillerRatio * 200)));
-  
-  // Calculate average sentence length
-  const averageSentenceLength = sentences.length > 0 ? 
-    words.length / sentences.length : 0;
-  
-  // Estimate talk time based on conversation balance
-  const userMessages = conversationHistory.filter(msg => msg.speaker === 'user').length;
-  const totalMessages = conversationHistory.length;
-  const estimatedTalkTime = totalMessages > 0 ? 
-    Math.round((userMessages / totalMessages) * 100) : 50;
-  
-  return {
-    talkTimeRatio: estimatedTalkTime,
-    fillerWordCount: fillerWordCount,
-    confidenceScore: Math.round(confidenceScore),
-    wordCount: words.length,
-    averageSentenceLength: Math.round(averageSentenceLength * 10) / 10,
-    conversationLength: conversationHistory.length
-  };
-}
-    
-    // Get AI feedback
-    let aiFeedback = '';
-    try {
-      const conversationText = conversationHistory
-        .map(msg => `${msg.speaker === 'user' ? 'Salesperson' : 'Customer'}: ${msg.message}`)
-        .join('\n');
-      
-      if (conversationText.length > 0) {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: [{
-            role: "system",
-            content: "You are a sales coach. Analyze this sales roleplay conversation and provide constructive feedback on communication skills, persuasion techniques, and areas for improvement. Keep it concise and actionable."
-          }, {
-            role: "user",
-            content: `Please analyze this sales conversation:\n\n${conversationText.substring(0, 2000)}`
-          }],
-          max_tokens: 300
-        });
-        
-        aiFeedback = completion.choices[0].message.content;
-      } else {
-        aiFeedback = "Great job starting the conversation! Try to engage more with the customer to get detailed feedback.";
-      }
-    } catch (error) {
-      console.error('OpenAI API error:', error);
-      aiFeedback = 'Session completed successfully. Keep practicing to improve your skills!';
-    }
-    
-    // Update session in Google Sheets
-    try {
-      const sessionsSheet = doc.sheetsByTitle['Sessions'];
-      const rows = await sessionsSheet.getRows();
-      const session = rows.find(row => row.get('id') === sessionId);
-      
-      if (session) {
-        session.set('endTime', new Date().toISOString());
-        session.set('duration', duration);
-        session.set('status', 'completed');
-        session.set('transcript', redactedTranscript);
-        await session.save();
-        console.log('✅ Session updated in sheets');
-      } else {
-        console.log('⚠️ Session not found in sheets:', sessionId);
-      }
-    } catch (sheetError) {
-      console.error('❌ Error updating session in sheets:', sheetError);
-    }
-    
-    // Save feedback
-    try {
-      const feedbackSheet = doc.sheetsByTitle['Feedback'];
-      await feedbackSheet.addRow({
-        sessionId: sessionId,
-        userId: req.user.uid,
-        createdAt: new Date().toISOString(),
-        talkTimeRatio: analysis.talkTimeRatio,
-        fillerWordCount: analysis.fillerWordCount,
-        confidenceScore: analysis.confidenceScore,
-        aiFeedback: aiFeedback,
-        conversationLength: conversationHistory.length,
-        keyMetrics: JSON.stringify(analysis)
-      });
-      console.log('✅ Feedback saved to sheets');
-    } catch (feedbackError) {
-      console.error('❌ Error saving feedback:', feedbackError);
-    }
-    
-    const finalAnalysis = {
-      ...analysis,
-      aiFeedback: aiFeedback,
-      conversationLength: conversationHistory.length
-    };
-    
-    console.log('✅ Sending final analysis:', finalAnalysis);
-    
-    res.json({
-      analysis: finalAnalysis
-    });
-    
-  } catch (error) {
-    console.error('❌ Error ending session:', error);
-    res.status(500).json({ 
-      error: 'Failed to end session', 
-      details: error.message 
-    });
-  }
-});
-  // Loading state
- // Show ending session loading
-if (isEndingSession) {
-  return (
-    <div className="session-loading">
-      <div className="loading-spinner"></div>
-      <p>Ending your practice session and generating feedback...</p>
-    </div>
-  );
-}
 
-// Show initial loading (only when first starting)
-if (loading && !feedback) {
-  return (
-    <div className="session-loading">
-      <div className="loading-spinner"></div>
-      <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
-    </div>
-  );
-}
+  // Show ending session loading
+  if (isEndingSession) {
+    return (
+      <div className="session-loading">
+        <div className="loading-spinner"></div>
+        <p>Ending your practice session and generating feedback...</p>
+      </div>
+    );
+  }
+
+  // Show initial loading (only when first starting)
+  if (loading && !feedback) {
+    return (
+      <div className="session-loading">
+        <div className="loading-spinner"></div>
+        <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
+      </div>
+    );
+  }
+
   // Error state
   if (error) {
     return (
