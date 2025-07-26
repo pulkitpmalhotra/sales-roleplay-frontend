@@ -324,8 +324,6 @@ const viewSessionDetails = async (sessionId) => {
       </>
 )}
    </div> 
-</main>
-      </div>
   return (
   <div className="dashboard">
     <header className="dashboard-header">
@@ -346,7 +344,10 @@ const viewSessionDetails = async (sessionId) => {
           {/* history content */}
         </div>
       )}
+    </main>
     </div>
+  </div>
+);
 
     {/* Modal INSIDE the main dashboard div */}
     {showSessionDetails && selectedSession && (
