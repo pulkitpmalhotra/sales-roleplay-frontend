@@ -367,7 +367,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Real-time speech processing for natural conversation flow
+  // Real-time speech processing with enhanced role validation
   const processUserSpeechRealtime = async (speechText) => {
     console.log('🎯 processUserSpeechRealtime called with:', speechText);
     
@@ -383,20 +383,21 @@ const VideoSession = ({ user }) => {
 
     try {
       // Add user message to conversation immediately
-      console.log('🎯 Adding user message to conversation');
+      console.log('🎯 Adding USER (salesperson) message to conversation');
       addToConversation('user', speechText);
-      setTranscript(prev => prev + speechText + ' ');
+      setTranscript(prev => prev + `[You]: ${speechText} `);
       
       const token = await user.getIdToken();
-      console.log('🔄 Sending to AI backend for real-time response...');
+      console.log('🔄 Sending to AI backend for CUSTOMER response...');
       
+      // Send the current conversation to maintain context but prevent role confusion
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
         {
           sessionId: sessionId,
           userMessage: speechText,
           scenarioId: scenarioId,
-          conversationHistory: conversation
+          conversationHistory: conversation // This maintains conversation context
         },
         { 
           headers: { Authorization: `Bearer ${token}` },
@@ -405,10 +406,25 @@ const VideoSession = ({ user }) => {
       );
       
       const aiResponse = response.data.response;
-      console.log('🤖 AI response received:', aiResponse);
+      console.log('🤖 AI CUSTOMER response received:', aiResponse);
       
       if (aiResponse && aiResponse.trim()) {
-        addToConversation('ai', aiResponse);
+        // Double-check that AI is responding as customer, not salesperson
+        const isValidCustomerResponse = !aiResponse.toLowerCase().includes('let me sell you') &&
+                                       !aiResponse.toLowerCase().includes('here\'s my pitch') &&
+                                       !aiResponse.toLowerCase().includes('i recommend');
+        
+        if (isValidCustomerResponse) {
+          console.log('✅ Valid customer response, adding to conversation');
+          addToConversation('ai', aiResponse);
+          setTranscript(prev => prev + `[${scenarioData?.ai_character_name || 'Customer'}]: ${aiResponse} `);
+        } else {
+          console.log('⚠️ Invalid response detected, using fallback');
+          const fallbackResponse = "I'm not sure I understand. Can you explain how this helps my business?";
+          addToConversation('ai', fallbackResponse);
+          setTranscript(prev => prev + `[${scenarioData?.ai_character_name || 'Customer'}]: ${fallbackResponse} `);
+        }
+        
         setWaitingForAI(false);
         
         // Minimal delay for natural conversation flow
@@ -423,9 +439,10 @@ const VideoSession = ({ user }) => {
       console.error('❌ Error in real-time speech processing:', error);
       setWaitingForAI(false);
       
-      // Quick fallback for real-time conversation
+      // Quick fallback for real-time conversation - always stay in customer role
       const fallbackResponse = "Could you repeat that? I want to make sure I understand.";
       addToConversation('ai', fallbackResponse);
+      setTranscript(prev => prev + `[Customer]: ${fallbackResponse} `);
       
       setTimeout(() => {
         speakText(fallbackResponse);
@@ -437,14 +454,52 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Add to conversation with better logging
+  // Add to conversation with role validation to prevent AI confusion
   const addToConversation = (speaker, message) => {
     console.log(`💬 Adding to conversation - ${speaker}: ${message.substring(0, 50)}...`);
-    setConversation(prev => [...prev, {
+    
+    // Validate speaker roles to prevent confusion
+    if (speaker !== 'user' && speaker !== 'ai') {
+      console.error('❌ Invalid speaker role:', speaker);
+      return;
+    }
+    
+    // Additional validation: ensure AI isn't speaking as salesperson
+    if (speaker === 'ai') {
+      const salesPhrases = [
+        'let me show you how', 'here\'s what i recommend', 'the best approach is',
+        'you should try', 'my suggestion would be', 'what you need to do'
+      ];
+      
+      const seemsLikeSalesAdvice = salesPhrases.some(phrase => 
+        message.toLowerCase().includes(phrase)
+      );
+      
+      if (seemsLikeSalesAdvice) {
+        console.log('⚠️ AI trying to give sales advice, filtering message');
+        message = "Could you tell me more about how this specifically helps my business?";
+      }
+    }
+    
+    const newMessage = {
       speaker,
       message,
       timestamp: Date.now()
-    }]);
+    };
+    
+    setConversation(prev => {
+      // Prevent duplicate messages
+      const lastMessage = prev[prev.length - 1];
+      if (lastMessage && 
+          lastMessage.speaker === speaker && 
+          lastMessage.message === message &&
+          Date.now() - lastMessage.timestamp < 2000) {
+        console.log('🚫 Preventing duplicate message');
+        return prev;
+      }
+      
+      return [...prev, newMessage];
+    });
   };
 
   // Enhanced text to speech
