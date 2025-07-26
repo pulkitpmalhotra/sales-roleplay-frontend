@@ -325,6 +325,7 @@ const viewSessionDetails = async (sessionId) => {
     )}
   </div>
 )}
+   </div> 
 </main>
       </div>
   {showSessionDetails && selectedSession && (
