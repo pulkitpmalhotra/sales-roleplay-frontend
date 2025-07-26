@@ -15,10 +15,10 @@ const VideoSession = ({ user }) => {
   const [transcript, setTranscript] = useState('');
   const [conversation, setConversation] = useState([]);
   const [sessionStartTime, setSessionStartTime] = useState(null);
-  const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEndingSession, setIsEndingSession] = useState(false);
   const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState(null);
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
   const [scenarioData, setScenarioData] = useState(null);
@@ -293,8 +293,8 @@ const VideoSession = ({ user }) => {
   // End session
  const endSession = async () => {
   try {
-    setIsEndingSession(true); // Set ending state
-    setLoading(true);
+    setIsEndingSession(true); // Only set this
+    // Remove setLoading(true) - this was causing the conflict
     cleanup();
 
     const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
@@ -313,8 +313,7 @@ const VideoSession = ({ user }) => {
 
     console.log('🔍 Feedback object:', response.data.analysis);
     setFeedback(response.data.analysis);
-    setLoading(false);
-    setIsEndingSession(false); // Reset ending state
+    setIsEndingSession(false); // Clear ending state when feedback is ready
 
   } catch (error) {
     console.error('Error ending session:', error);
@@ -333,19 +332,25 @@ const VideoSession = ({ user }) => {
   }, []);
 
   // Loading state
- if (loading && !feedback) {
+ // Show ending session loading
+if (isEndingSession) {
   return (
     <div className="session-loading">
       <div className="loading-spinner"></div>
-      {isEndingSession ? (
-        <p>Ending your practice session and generating feedback...</p>
-      ) : (
-        <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
-      )}
+      <p>Ending your practice session and generating feedback...</p>
     </div>
   );
 }
 
+// Show initial loading (only when first starting)
+if (loading && !feedback) {
+  return (
+    <div className="session-loading">
+      <div className="loading-spinner"></div>
+      <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
+    </div>
+  );
+}
   // Error state
   if (error) {
     return (
