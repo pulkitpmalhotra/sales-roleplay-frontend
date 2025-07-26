@@ -22,11 +22,16 @@ const VideoSession = ({ user }) => {
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
   const [scenarioData, setScenarioData] = useState(null);
+  const [userSpeechBuffer, setUserSpeechBuffer] = useState('');
+  const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
+  const [hasIntroduced, setHasIntroduced] = useState(false);
   
   // Refs
   const callFrameRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
+  const speechTimeoutRef = useRef(null);
+  const isProcessingUserSpeech = useRef(false);
 
   const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
@@ -38,6 +43,12 @@ const VideoSession = ({ user }) => {
   // Cleanup function
   const cleanup = () => {
     console.log('🧹 Starting cleanup...');
+    
+    // Clear any timeouts
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
     
     // Stop Daily.co call
     if (callObject) {
@@ -69,6 +80,8 @@ const VideoSession = ({ user }) => {
     // Reset AI speaking state
     setIsAISpeaking(false);
     setWaitingForAI(false);
+    setUserSpeechBuffer('');
+    isProcessingUserSpeech.current = false;
     
     console.log('🧹 Cleanup completed');
   };
@@ -123,9 +136,11 @@ const VideoSession = ({ user }) => {
         setSessionStartTime(Date.now());
         startSpeechRecognition();
         
-        // AI introduces itself
+        // AI introduces itself after a delay
         setTimeout(() => {
-          introduceAICharacter();
+          if (!hasIntroduced) {
+            introduceAICharacter();
+          }
         }, 2000);
       });
 
@@ -146,41 +161,54 @@ const VideoSession = ({ user }) => {
   };
 
   // AI character introduction
-  const introduceAICharacter = () => {
-    // Get character details from scenario
-    const characterName = scenarioData?.ai_character_name || 'Sarah Mitchell';
-    const characterRole = scenarioData?.ai_character_role || 'IT Director';
-    const characterPersonality = scenarioData?.ai_character_personality || 'Busy, professional';
-    const characterBackground = scenarioData?.ai_character_background || 'Works at a tech company';
-    const salesSkillArea = scenarioData?.sales_skill_area || 'Sales Practice';
-    
-    // Create personality-based introduction
-    let introduction = '';
-    
-    // Different introductions based on skill area and personality
-    if (salesSkillArea === 'Prospecting & Outreach') {
-      if (characterPersonality.toLowerCase().includes('busy') || characterPersonality.toLowerCase().includes('skeptical')) {
-        introduction = `Hello, this is ${characterName}, ${characterRole}. I have to say, I'm quite busy right now and wasn't expecting a call. You have about 2 minutes of my attention - what's this about?`;
-      } else {
-        introduction = `Hi there! ${characterName} here, I'm the ${characterRole}. I have a few minutes - what can I help you with today?`;
-      }
-    } else if (salesSkillArea === 'Objection Handling') {
-      introduction = `${characterName} speaking. Look, I'll be honest with you - I've heard pitches like this before and frankly, I'm not convinced. But go ahead, try to change my mind.`;
-    } else if (salesSkillArea === 'Discovery & Consultative Selling') {
-      introduction = `Hi, I'm ${characterName}, ${characterRole}. I'm interested in hearing what you have to offer, but I need to understand how this actually helps my business. What do you need to know about us?`;
-    } else if (salesSkillArea === 'Pitching & Presenting') {
-      introduction = `${characterName} here. I've been looking into solutions like yours. I have some time now - show me what you've got and why I should care.`;
-    } else {
-      // Default introduction
-      introduction = `Hi there! I'm ${characterName}, ${characterRole} here. ${characterBackground.split('.')[0]}. What company are you calling from?`;
+  const introduceAICharacter = async () => {
+    if (hasIntroduced || isAISpeaking || waitingForAI) {
+      console.log('🎭 Skipping introduction - already done or AI busy');
+      return;
     }
-    
-    console.log('🎭 AI Character Introduction:', introduction);
-    addToConversation('ai', introduction);
-    speakText(introduction);
+
+    setHasIntroduced(true);
+    setWaitingForAI(true);
+
+    try {
+      console.log('🎭 Getting AI introduction...');
+      const token = await user.getIdToken();
+      
+      // Use the AI chat endpoint to get a proper introduction
+      const response = await axios.post(
+        `${API_BASE_URL}/api/ai/chat`,
+        {
+          sessionId: sessionId,
+          userMessage: "SYSTEM_INTRODUCTION", // Special message to trigger introduction
+          scenarioId: scenarioId,
+          conversationHistory: []
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const introduction = response.data.response;
+      console.log('🎭 AI Introduction received:', introduction);
+      
+      addToConversation('ai', introduction);
+      setWaitingForAI(false);
+      
+      // Small delay before speaking
+      setTimeout(() => {
+        speakText(introduction);
+      }, 500);
+      
+    } catch (error) {
+      console.error('❌ Error getting AI introduction:', error);
+      setWaitingForAI(false);
+      
+      // Fallback introduction
+      const fallbackIntro = `Hello! I'm ${scenarioData?.ai_character_name || 'the customer'}. What can I help you with today?`;
+      addToConversation('ai', fallbackIntro);
+      speakText(fallbackIntro);
+    }
   };
 
-  // Speech recognition
+  // Speech recognition with improved logic
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
@@ -189,6 +217,11 @@ const VideoSession = ({ user }) => {
       recognition.lang = 'en-US';
 
       recognition.onresult = (event) => {
+        // Only process speech if AI is not speaking and we're not already processing
+        if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
+          return;
+        }
+
         let finalTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
@@ -197,39 +230,75 @@ const VideoSession = ({ user }) => {
         }
         
         if (finalTranscript.trim()) {
-          setTranscript(prev => prev + finalTranscript);
+          const cleanedText = finalTranscript.trim();
+          console.log('🎤 User speech detected:', cleanedText);
           
-          // Check if user finished speaking
-          if (finalTranscript.length > 0 && !isAISpeaking && !waitingForAI) {
-            handleUserSpeech(finalTranscript.trim());
+          // Update buffer and timestamp
+          setUserSpeechBuffer(prev => prev + ' ' + cleanedText);
+          setLastUserSpeechTime(Date.now());
+          
+          // Clear existing timeout
+          if (speechTimeoutRef.current) {
+            clearTimeout(speechTimeoutRef.current);
           }
+          
+          // Set new timeout to process speech after user stops talking
+          speechTimeoutRef.current = setTimeout(() => {
+            processUserSpeech();
+          }, 2000); // Wait 2 seconds after user stops talking
         }
       };
 
       recognition.onerror = (event) => {
         console.error('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed') {
+          setError('Microphone access denied. Please allow microphone access and refresh.');
+        }
+      };
+
+      recognition.onend = () => {
+        // Restart recognition if not manually stopped
+        if (recognitionRef.current && !isEndingSession) {
+          setTimeout(() => {
+            if (recognitionRef.current) {
+              recognition.start();
+            }
+          }, 100);
+        }
       };
 
       recognitionRef.current = recognition;
       recognition.start();
       setIsRecording(true);
+    } else {
+      setError('Speech recognition not supported in this browser. Please use Chrome.');
     }
   };
 
-  // Handle user speech
-  const handleUserSpeech = async (userMessage) => {
-    if (userMessage.length < 10) return; // Ignore very short utterances
+  // Process accumulated user speech
+  const processUserSpeech = async () => {
+    const currentBuffer = userSpeechBuffer.trim();
     
+    if (!currentBuffer || currentBuffer.length < 10 || isProcessingUserSpeech.current) {
+      return;
+    }
+
+    console.log('🎯 Processing user speech:', currentBuffer);
+    isProcessingUserSpeech.current = true;
+    setUserSpeechBuffer(''); // Clear buffer
     setWaitingForAI(true);
-    addToConversation('user', userMessage);
-    
+
     try {
+      // Add user message to conversation
+      addToConversation('user', currentBuffer);
+      setTranscript(prev => prev + currentBuffer + ' ');
+      
       const token = await user.getIdToken();
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
         {
           sessionId: sessionId,
-          userMessage: userMessage,
+          userMessage: currentBuffer,
           scenarioId: scenarioId,
           conversationHistory: conversation
         },
@@ -237,22 +306,32 @@ const VideoSession = ({ user }) => {
       );
       
       const aiResponse = response.data.response;
+      console.log('🤖 AI response received:', aiResponse);
+      
       addToConversation('ai', aiResponse);
+      setWaitingForAI(false);
       
       // Small delay before AI responds (more natural)
       setTimeout(() => {
         speakText(aiResponse);
-        setWaitingForAI(false);
       }, 1000);
       
     } catch (error) {
-      console.error('Error getting AI response:', error);
+      console.error('❌ Error getting AI response:', error);
       setWaitingForAI(false);
+      
+      // Fallback response
+      const fallbackResponse = "I'm sorry, could you repeat that? I didn't catch what you said.";
+      addToConversation('ai', fallbackResponse);
+      speakText(fallbackResponse);
+    } finally {
+      isProcessingUserSpeech.current = false;
     }
   };
 
-  // Add to conversation
+  // Add to conversation with better logging
   const addToConversation = (speaker, message) => {
+    console.log(`💬 Adding to conversation - ${speaker}: ${message.substring(0, 50)}...`);
     setConversation(prev => [...prev, {
       speaker,
       message,
@@ -260,97 +339,36 @@ const VideoSession = ({ user }) => {
     }]);
   };
 
-  // Text to speech
- const speakText = (text) => {
-  if ('speechSynthesis' in window) {
-    console.log('🔊 Starting speech synthesis for:', text.substring(0, 50) + '...');
-    setIsAISpeaking(true);
-    
-    // Cancel any existing speech
-    window.speechSynthesis.cancel();
-    
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Enhanced voice settings
-    utterance.rate = 0.8;  // Slower for clarity
-    utterance.pitch = 1.0; // Normal pitch
-    utterance.volume = 1.0; // Maximum volume
-    utterance.lang = 'en-US'; // Set language
-    
-    // Wait for voices to be loaded, then select best voice
-    const setVoiceAndSpeak = () => {
-      const voices = window.speechSynthesis.getVoices();
-      console.log('🔊 Available voices:', voices.length);
+  // Enhanced text to speech
+  const speakText = (text) => {
+    if ('speechSynthesis' in window && text.trim()) {
+      console.log('🔊 Starting speech synthesis for:', text.substring(0, 50) + '...');
+      setIsAISpeaking(true);
       
-      if (voices.length === 0) {
-        console.log('⚠️ No voices available yet, speaking with default');
-      } else {
-        // Priority order for female voices
-        const preferredVoices = [
-          'Microsoft Zira - English (United States)',
-          'Google US English Female',
-          'Samantha',
-          'Karen',
-          'Moira',
-          'Tessa',
-          'Veena'
-        ];
-        
-        let selectedVoice = null;
-        
-        // Try to find preferred voices
-        for (const voiceName of preferredVoices) {
-          selectedVoice = voices.find(voice => 
-            voice.name.toLowerCase().includes(voiceName.toLowerCase())
-          );
-          if (selectedVoice) break;
-        }
-        
-        // Fallback: find any female voice
-        if (!selectedVoice) {
-          selectedVoice = voices.find(voice => 
-            voice.name.toLowerCase().includes('female') ||
-            voice.name.toLowerCase().includes('woman') ||
-            (voice.gender && voice.gender.toLowerCase() === 'female')
-          );
-        }
-        
-        // Final fallback: use first English voice
-        if (!selectedVoice) {
-          selectedVoice = voices.find(voice => 
-            voice.lang.startsWith('en-')
-          );
-        }
-        
-        if (selectedVoice) {
-          utterance.voice = selectedVoice;
-          console.log('🔊 Selected voice:', selectedVoice.name);
-        } else {
-          console.log('⚠️ Using default voice');
-        }
+      // Cancel any existing speech
+      window.speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Enhanced voice settings
+      utterance.rate = 0.8;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      utterance.lang = 'en-US';
+      
+      // Set voice
+      const voices = window.speechSynthesis.getVoices();
+      const femaleVoice = voices.find(voice => 
+        voice.name.toLowerCase().includes('female') ||
+        voice.name.toLowerCase().includes('zira') ||
+        voice.name.toLowerCase().includes('samantha')
+      );
+      
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
       }
-      // Add this inside your VideoSession component, before the return statement
-const testSpeech = () => {
-  console.log('🧪 Testing speech synthesis...');
-  
-  const testText = "Hello, this is a test of the speech synthesis system.";
-  
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(testText);
-    utterance.volume = 1.0;
-    utterance.rate = 0.8;
-    utterance.pitch = 1.0;
-    
-    utterance.onstart = () => console.log('🔊 Test speech started');
-    utterance.onend = () => console.log('🔊 Test speech ended');
-    utterance.onerror = (e) => console.error('❌ Test speech error:', e);
-    
-    window.speechSynthesis.speak(utterance);
-  } else {
-    console.error('❌ Speech synthesis not supported');
-  }
-};
-      // Event listeners for debugging
+      
+      // Event listeners
       utterance.onstart = () => {
         console.log('🔊 Speech started');
         setIsAISpeaking(true);
@@ -359,100 +377,61 @@ const testSpeech = () => {
       utterance.onend = () => {
         console.log('🔊 Speech ended');
         setIsAISpeaking(false);
+        speechSynthesisRef.current = null;
       };
       
       utterance.onerror = (event) => {
         console.error('❌ Speech error:', event.error);
         setIsAISpeaking(false);
-      };
-      
-      utterance.onpause = () => {
-        console.log('⏸️ Speech paused');
-      };
-      
-      utterance.onresume = () => {
-        console.log('▶️ Speech resumed');
+        speechSynthesisRef.current = null;
       };
       
       // Speak the text
       speechSynthesisRef.current = utterance;
-      console.log('🔊 About to speak...');
       window.speechSynthesis.speak(utterance);
-    };
-    
-    // Check if voices are already loaded
-    if (window.speechSynthesis.getVoices().length > 0) {
-      setVoiceAndSpeak();
     } else {
-      // Wait for voices to load
-      console.log('⏳ Waiting for voices to load...');
-      window.speechSynthesis.onvoiceschanged = () => {
-        console.log('✅ Voices loaded');
-        setVoiceAndSpeak();
-        window.speechSynthesis.onvoiceschanged = null; // Remove listener
-      };
+      console.error('❌ Speech synthesis not supported or empty text');
+      setIsAISpeaking(false);
     }
-  } else {
-    console.error('❌ Speech synthesis not supported');
-    setIsAISpeaking(false);
-  }
-};
-  // End session
+  };
+
+  // End session (existing code remains the same)
   const endSession = async () => {
-  try {
-    console.log('🔍 ===== FRONTEND END SESSION DEBUG =====');
-    setIsEndingSession(true);
-    cleanup();
+    try {
+      console.log('🔍 ===== FRONTEND END SESSION DEBUG =====');
+      setIsEndingSession(true);
+      cleanup();
 
-    const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+      const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
 
-    console.log('🔍 Session data being sent:', {
-      sessionId,
-      duration,
-      conversationLength: conversation.length,
-      transcriptLength: transcript.length
-    });
+      const token = await user.getIdToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/api/sessions/end`,
+        {
+          sessionId: sessionId,
+          transcript: transcript,
+          duration: duration,
+          conversationHistory: conversation
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-    const token = await user.getIdToken();
-    console.log('🔍 Making request to end session...');
-    
-    const response = await axios.post(
-      `${API_BASE_URL}/api/sessions/end`,
-      {
-        sessionId: sessionId,
-        transcript: transcript,
-        duration: duration,
-        conversationHistory: conversation
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+      if (response.data && response.data.analysis) {
+        setFeedback(response.data.analysis);
+      } else {
+        setTimeout(() => navigate('/dashboard'), 2000);
+      }
+      
+      setIsEndingSession(false);
 
-    console.log('✅ Backend response received');
-    console.log('✅ Response status:', response.status);
-    console.log('✅ Response data:', response.data);
-    console.log('✅ Analysis in response:', response.data?.analysis);
-
-    if (response.data && response.data.analysis) {
-      console.log('✅ Setting feedback state...');
-      setFeedback(response.data.analysis);
-      console.log('✅ Feedback state set - should show feedback screen now');
-    } else {
-      console.error('❌ No analysis in response - redirecting to dashboard');
-      setTimeout(() => navigate('/dashboard'), 2000);
+    } catch (error) {
+      console.error('❌ Frontend error ending session:', error);
+      setIsEndingSession(false);
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
     }
-    
-    setIsEndingSession(false);
-    console.log('🔍 ===== FRONTEND END SESSION COMPLETE =====');
-
-  } catch (error) {
-    console.error('❌ Frontend error ending session:', error);
-    console.error('❌ Error response data:', error.response?.data);
-    setIsEndingSession(false);
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 2000);
-  }
-};
+  };
 
   // Component lifecycle
   useEffect(() => {
@@ -472,7 +451,7 @@ const testSpeech = () => {
     );
   }
 
-  // Show initial loading (only when first starting)
+  // Show initial loading
   if (loading && !feedback) {
     return (
       <div className="session-loading">
@@ -495,7 +474,7 @@ const testSpeech = () => {
     );
   }
 
-  // Feedback state
+  // Feedback state (existing code remains the same)
   if (feedback) {
     return (
       <div className="feedback-container google-ads">
@@ -532,17 +511,6 @@ const testSpeech = () => {
                 </div>
               </div>
             </div>
-            
-            {feedback?.google_ads_concepts_used && feedback.google_ads_concepts_used.length > 0 && (
-              <div className="google-ads-concepts">
-                <h4>Google Ads Concepts Used</h4>
-                <div className="concepts-list">
-                  {feedback.google_ads_concepts_used.map((concept, index) => (
-                    <span key={index} className="concept-tag">{concept}</span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {feedback?.aiFeedback && (
@@ -551,17 +519,6 @@ const testSpeech = () => {
               <div className="ai-feedback-text">
                 {feedback.aiFeedback}
               </div>
-            </div>
-          )}
-          
-          {feedback?.coachingRecommendations && feedback.coachingRecommendations.length > 0 && (
-            <div className="coaching-recommendations">
-              <h4>📚 Next Steps to Improve</h4>
-              <ul>
-                {feedback.coachingRecommendations.map((rec, index) => (
-                  <li key={index}>{rec}</li>
-                ))}
-              </ul>
             </div>
           )}
 
@@ -581,7 +538,7 @@ const testSpeech = () => {
     );
   }
 
-  // Active session state
+  // Active session state with AI avatar
   return (
     <div className="video-session">
       <div className="session-header google-ads">
@@ -598,7 +555,7 @@ const testSpeech = () => {
           <div className="ai-status">
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
-            {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
+            {isRecording && !isAISpeaking && !waitingForAI && <span>🎤 Listening for your response...</span>}
           </div>
           <button onClick={endSession} className="end-session-button">
             End Google Ads Practice
@@ -607,7 +564,22 @@ const testSpeech = () => {
       </div>
 
       <div className="video-container" ref={callFrameRef}>
-        {/* Daily.co video will appear here */}
+        {/* AI Avatar Overlay */}
+        <div className="ai-avatar-overlay">
+          <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
+            <div className="avatar-image">
+              <div className="avatar-placeholder">
+                {scenarioData?.ai_character_name ? scenarioData.ai_character_name.charAt(0) : 'AI'}
+              </div>
+            </div>
+            <div className="avatar-status">
+              <div className="character-name">{scenarioData?.ai_character_name || 'AI Character'}</div>
+              <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
+              {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
+              {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="session-info">
