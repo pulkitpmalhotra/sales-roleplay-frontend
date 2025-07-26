@@ -17,6 +17,7 @@ const VideoSession = ({ user }) => {
   const [sessionStartTime, setSessionStartTime] = useState(null);
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isEndingSession, setIsEndingSession] = useState(false);
   const [error, setError] = useState('');
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
@@ -290,37 +291,39 @@ const VideoSession = ({ user }) => {
   };
 
   // End session
-  const endSession = async () => {
-    try {
-      setLoading(true);
-      cleanup();
+ const endSession = async () => {
+  try {
+    setIsEndingSession(true); // Set ending state
+    setLoading(true);
+    cleanup();
 
-      const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+    const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
 
-      const token = await user.getIdToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/api/sessions/end`,
-        {
-          sessionId: sessionId,
-          transcript: transcript,
-          duration: duration,
-          conversationHistory: conversation
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    const token = await user.getIdToken();
+    const response = await axios.post(
+      `${API_BASE_URL}/api/sessions/end`,
+      {
+        sessionId: sessionId,
+        transcript: transcript,
+        duration: duration,
+        conversationHistory: conversation
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      console.log('🔍 Feedback object:', response.data.analysis);
-      setFeedback(response.data.analysis);
-      setLoading(false);
+    console.log('🔍 Feedback object:', response.data.analysis);
+    setFeedback(response.data.analysis);
+    setLoading(false);
+    setIsEndingSession(false); // Reset ending state
 
-    } catch (error) {
-      console.error('Error ending session:', error);
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
-    }
-  };
-
+  } catch (error) {
+    console.error('Error ending session:', error);
+    setIsEndingSession(false); // Reset on error
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 2000);
+  }
+};
   // Component lifecycle
   useEffect(() => {
     initializeSession();
@@ -330,14 +333,18 @@ const VideoSession = ({ user }) => {
   }, []);
 
   // Loading state
-  if (loading && !feedback) {
-    return (
-      <div className="session-loading">
-        <div className="loading-spinner"></div>
-        <p>{sessionId ? 'Ending your practice session...' : 'Initializing...'}</p>
-      </div>
-    );
-  }
+ if (loading && !feedback) {
+  return (
+    <div className="session-loading">
+      <div className="loading-spinner"></div>
+      {isEndingSession ? (
+        <p>Ending your practice session and generating feedback...</p>
+      ) : (
+        <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
+      )}
+    </div>
+  );
+}
 
   // Error state
   if (error) {
