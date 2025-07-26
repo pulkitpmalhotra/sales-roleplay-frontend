@@ -219,42 +219,41 @@ const VideoSession = ({ user }) => {
 
 const endSession = async () => {
   try {
-    console.log('Starting to end session...'); // Debug
-    console.log('Session ID:', sessionId); // Debug
-    console.log('Conversation history:', conversation); // Debug
-    
     setLoading(true);
     cleanup();
 
     const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
-    console.log('Session duration:', duration); // Debug
 
     const token = await user.getIdToken();
-    console.log('Got Firebase token for end session'); // Debug
-    
-    const requestData = {
-      sessionId: sessionId,
-      transcript: transcript,
-      duration: duration,
-      conversationHistory: conversation
-    };
-    console.log('Sending end session request:', requestData); // Debug
-
     const response = await axios.post(
       `${API_BASE_URL}/api/sessions/end`,
-      requestData,
+      {
+        sessionId: sessionId,
+        transcript: transcript,
+        duration: duration,
+        conversationHistory: conversation
+      },
       { headers: { Authorization: `Bearer ${token}` } }
     );
 
-    console.log('End session response:', response.data); // Debug
     setFeedback(response.data.analysis);
     setLoading(false);
 
+    // Fallback: if feedback doesn't show after 5 seconds, go to dashboard
+    setTimeout(() => {
+      if (!feedback) {
+        console.log('⚠️ Feedback not showing, redirecting to dashboard');
+        navigate('/dashboard');
+      }
+    }, 5000);
+
   } catch (error) {
     console.error('Error ending session:', error);
-    console.error('Error details:', error.response?.data); // More debug info
-    setError('Failed to end session');
-    setLoading(false);
+    
+    // If session ending fails, just go back to dashboard
+    setTimeout(() => {
+      navigate('/dashboard');
+    }, 2000);
   }
 };
 
