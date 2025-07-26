@@ -18,7 +18,7 @@ const VideoSession = ({ user }) => {
   const callFrameRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  const API_BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001';
+  const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
   useEffect(() => {
     initializeSession();
