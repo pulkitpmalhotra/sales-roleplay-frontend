@@ -221,7 +221,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Speech recognition with improved error handling
+  // Speech recognition with improved detection and debugging
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
@@ -236,8 +236,11 @@ const VideoSession = ({ user }) => {
       };
 
       recognition.onresult = (event) => {
+        console.log('🎤 Speech recognition result event triggered');
+        
         // Only process speech if AI is not speaking and we're not already processing
         if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
+          console.log('🎤 Skipping speech - AI busy or already processing');
           return;
         }
 
@@ -246,6 +249,10 @@ const VideoSession = ({ user }) => {
         
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
+          const confidence = event.results[i][0].confidence;
+          
+          console.log(`🎤 Result ${i}: "${transcript}" (final: ${event.results[i].isFinal}, confidence: ${confidence})`);
+          
           if (event.results[i].isFinal) {
             finalTranscript += transcript + ' ';
           } else {
@@ -253,24 +260,61 @@ const VideoSession = ({ user }) => {
           }
         }
         
+        // Show interim results to user for feedback
+        if (interimTranscript.trim()) {
+          console.log('🎤 Interim speech:', interimTranscript);
+          // You could show this in UI for debugging
+        }
+        
         if (finalTranscript.trim()) {
           const cleanedText = finalTranscript.trim();
-          console.log('🎤 User speech detected:', cleanedText);
+          console.log('🎤 Final speech detected:', cleanedText);
           
           // Update buffer and timestamp
-          setUserSpeechBuffer(prev => (prev + ' ' + cleanedText).trim());
+          setUserSpeechBuffer(prev => {
+            const newBuffer = (prev + ' ' + cleanedText).trim();
+            console.log('🎤 Updated speech buffer:', newBuffer);
+            return newBuffer;
+          });
           setLastUserSpeechTime(Date.now());
           
           // Clear existing timeout
           if (speechTimeoutRef.current) {
             clearTimeout(speechTimeoutRef.current);
+            console.log('🎤 Cleared existing timeout');
           }
           
           // Set new timeout to process speech after user stops talking
+          console.log('🎤 Setting 1.5 second timeout to process speech');
           speechTimeoutRef.current = setTimeout(() => {
+            console.log('🎤 Timeout triggered - processing speech now');
             processUserSpeech();
-          }, 2000); // Wait 2 seconds after user stops talking
+          }, 1500); // Reduced to 1.5 seconds for faster response
         }
+      };
+
+      recognition.onspeechstart = () => {
+        console.log('🎤 Speech started being detected');
+      };
+
+      recognition.onspeechend = () => {
+        console.log('🎤 Speech ended being detected');
+      };
+
+      recognition.onsoundstart = () => {
+        console.log('🎤 Sound started being detected');
+      };
+
+      recognition.onsoundend = () => {
+        console.log('🎤 Sound ended being detected');
+      };
+
+      recognition.onaudiostart = () => {
+        console.log('🎤 Audio capture started');
+      };
+
+      recognition.onaudioend = () => {
+        console.log('🎤 Audio capture ended');
       };
 
       recognition.onerror = (event) => {
@@ -299,7 +343,6 @@ const VideoSession = ({ user }) => {
             break;
           default:
             console.log(`🎤 Speech recognition error: ${event.error} - continuing...`);
-            // For other errors, just log and continue
             break;
         }
       };
@@ -314,12 +357,14 @@ const VideoSession = ({ user }) => {
             if (recognitionRef.current && !isEndingSession) {
               try {
                 recognition.start();
+                console.log('🎤 Speech recognition restarted successfully');
               } catch (e) {
                 console.log('🎤 Could not restart recognition immediately, trying again...');
                 setTimeout(() => {
                   if (recognitionRef.current && !isEndingSession) {
                     try {
                       recognition.start();
+                      console.log('🎤 Speech recognition restarted on second attempt');
                     } catch (e2) {
                       console.error('❌ Failed to restart speech recognition:', e2);
                     }
@@ -344,15 +389,20 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Process accumulated user speech with better error handling
+  // Process accumulated user speech with improved debugging
   const processUserSpeech = async () => {
     const currentBuffer = userSpeechBuffer.trim();
     
-    if (!currentBuffer || currentBuffer.length < 5 || isProcessingUserSpeech.current) {
-      console.log('🎯 Skipping speech processing:', { 
-        bufferLength: currentBuffer.length, 
-        isProcessing: isProcessingUserSpeech.current 
-      });
+    console.log('🎯 processUserSpeech called with buffer:', currentBuffer);
+    console.log('🎯 Current states:', {
+      bufferLength: currentBuffer.length,
+      isProcessing: isProcessingUserSpeech.current,
+      isAISpeaking,
+      waitingForAI
+    });
+    
+    if (!currentBuffer || currentBuffer.length < 3 || isProcessingUserSpeech.current) {
+      console.log('🎯 Skipping speech processing - conditions not met');
       return;
     }
 
@@ -363,6 +413,7 @@ const VideoSession = ({ user }) => {
 
     try {
       // Add user message to conversation
+      console.log('🎯 Adding user message to conversation');
       addToConversation('user', currentBuffer);
       setTranscript(prev => prev + currentBuffer + ' ');
       
@@ -384,7 +435,7 @@ const VideoSession = ({ user }) => {
       );
       
       const aiResponse = response.data.response;
-      console.log('🤖 AI response received:', aiResponse.substring(0, 50) + '...');
+      console.log('🤖 AI response received:', aiResponse);
       
       if (aiResponse && aiResponse.trim()) {
         addToConversation('ai', aiResponse);
@@ -419,6 +470,7 @@ const VideoSession = ({ user }) => {
       }, 500);
       
     } finally {
+      console.log('🎯 Speech processing completed, resetting flags');
       isProcessingUserSpeech.current = false;
     }
   };
@@ -649,8 +701,38 @@ const VideoSession = ({ user }) => {
           <div className="ai-status">
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
-            {isRecording && !isAISpeaking && !waitingForAI && <span>🎤 Listening for your response...</span>}
+            {isRecording && !isAISpeaking && !waitingForAI && (
+              <span>🎤 Listening for your response... (speak clearly)</span>
+            )}
+            {userSpeechBuffer && (
+              <span>📝 Detected: "{userSpeechBuffer.substring(0, 30)}..."</span>
+            )}
           </div>
+          
+          {/* Debug and Manual Controls */}
+          <div className="debug-controls">
+            {userSpeechBuffer && !waitingForAI && (
+              <button 
+                onClick={() => processUserSpeech()} 
+                className="process-speech-button"
+                title="Manually process detected speech"
+              >
+                Send Message
+              </button>
+            )}
+            
+            <button 
+              onClick={() => {
+                setUserSpeechBuffer('');
+                console.log('🧹 Cleared speech buffer');
+              }} 
+              className="clear-buffer-button"
+              title="Clear detected speech"
+            >
+              Clear
+            </button>
+          </div>
+          
           <button onClick={endSession} className="end-session-button">
             End Google Ads Practice
           </button>
@@ -683,18 +765,92 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="session-info">
+        {/* Real-time Speech Buffer Display */}
+        {userSpeechBuffer && (
+          <div className="speech-buffer-section">
+            <h4>🎤 Currently Detected Speech:</h4>
+            <div className="speech-buffer-box">
+              {userSpeechBuffer}
+            </div>
+          </div>
+        )}
+
+        {/* Live Conversation Display */}
         <div className="conversation-section">
-          <h3>Live Conversation</h3>
+          <h3>Live Conversation ({conversation.length} exchanges)</h3>
           <div className="conversation-box">
-            {conversation.map((msg, index) => (
-              <div key={index} className={`message ${msg.speaker}`}>
-                <strong>{msg.speaker === 'user' ? 'You' : scenarioData?.ai_character_name || 'AI'}:</strong> {msg.message}
+            {conversation.length === 0 ? (
+              <div className="empty-conversation">
+                <p>🎯 Conversation will appear here as you practice with {scenarioData?.ai_character_name || 'the AI character'}...</p>
+                <p>💡 <strong>Tips:</strong></p>
+                <ul>
+                  <li>Speak clearly into your microphone</li>
+                  <li>Wait for the AI to finish speaking before responding</li>
+                  <li>Watch for the "📝 Detected:" message to confirm your speech is heard</li>
+                </ul>
               </div>
-            ))}
-            {conversation.length === 0 && (
-              <p>Conversation will appear here as you talk with {scenarioData?.ai_character_name || 'the AI character'}...</p>
+            ) : (
+              <div className="messages-container">
+                {conversation.map((msg, index) => (
+                  <div key={index} className={`message ${msg.speaker}`}>
+                    <div className="message-header">
+                      <strong>
+                        {msg.speaker === 'user' ? '👤 You' : `🤖 ${scenarioData?.ai_character_name || 'AI'}`}
+                      </strong>
+                      <span className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="message-content">
+                      {msg.message}
+                    </div>
+                  </div>
+                ))}
+                {waitingForAI && (
+                  <div className="message ai typing">
+                    <div className="message-header">
+                      <strong>🤖 {scenarioData?.ai_character_name || 'AI'}</strong>
+                    </div>
+                    <div className="message-content">
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
+        </div>
+
+        {/* Full Transcript Display */}
+        {transcript && (
+          <div className="transcript-section">
+            <h4>📝 Full Session Transcript ({transcript.split(' ').length} words)</h4>
+            <div className="transcript-box">
+              {transcript || 'Transcript will be generated as you speak...'}
+            </div>
+          </div>
+        )}
+
+        {/* Debug Information */}
+        <div className="debug-info">
+          <details>
+            <summary>🔍 Debug Information (Click to expand)</summary>
+            <div className="debug-details">
+              <p><strong>Session ID:</strong> {sessionId}</p>
+              <p><strong>Scenario ID:</strong> {scenarioId}</p>
+              <p><strong>Speech Buffer:</strong> "{userSpeechBuffer}"</p>
+              <p><strong>Is Recording:</strong> {isRecording ? '✅' : '❌'}</p>
+              <p><strong>Is AI Speaking:</strong> {isAISpeaking ? '✅' : '❌'}</p>
+              <p><strong>Waiting for AI:</strong> {waitingForAI ? '✅' : '❌'}</p>
+              <p><strong>Processing Speech:</strong> {isProcessingUserSpeech.current ? '✅' : '❌'}</p>
+              <p><strong>Conversation Length:</strong> {conversation.length}</p>
+              <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
+            </div>
+          </details>
         </div>
       </div>
     </div>
