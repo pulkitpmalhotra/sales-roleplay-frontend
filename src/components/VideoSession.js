@@ -261,35 +261,142 @@ const VideoSession = ({ user }) => {
   };
 
   // Text to speech
-  const speakText = (text) => {
-    if ('speechSynthesis' in window) {
-      setIsAISpeaking(true);
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1.1;
-      utterance.volume = 0.8;
-      
-      // Try to use a female voice
+ const speakText = (text) => {
+  if ('speechSynthesis' in window) {
+    console.log('🔊 Starting speech synthesis for:', text.substring(0, 50) + '...');
+    setIsAISpeaking(true);
+    
+    // Cancel any existing speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Enhanced voice settings
+    utterance.rate = 0.8;  // Slower for clarity
+    utterance.pitch = 1.0; // Normal pitch
+    utterance.volume = 1.0; // Maximum volume
+    utterance.lang = 'en-US'; // Set language
+    
+    // Wait for voices to be loaded, then select best voice
+    const setVoiceAndSpeak = () => {
       const voices = window.speechSynthesis.getVoices();
-      const femaleVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes('female') || 
-        voice.name.toLowerCase().includes('samantha') ||
-        voice.name.toLowerCase().includes('karen')
-      );
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
+      console.log('🔊 Available voices:', voices.length);
+      
+      if (voices.length === 0) {
+        console.log('⚠️ No voices available yet, speaking with default');
+      } else {
+        // Priority order for female voices
+        const preferredVoices = [
+          'Microsoft Zira - English (United States)',
+          'Google US English Female',
+          'Samantha',
+          'Karen',
+          'Moira',
+          'Tessa',
+          'Veena'
+        ];
+        
+        let selectedVoice = null;
+        
+        // Try to find preferred voices
+        for (const voiceName of preferredVoices) {
+          selectedVoice = voices.find(voice => 
+            voice.name.toLowerCase().includes(voiceName.toLowerCase())
+          );
+          if (selectedVoice) break;
+        }
+        
+        // Fallback: find any female voice
+        if (!selectedVoice) {
+          selectedVoice = voices.find(voice => 
+            voice.name.toLowerCase().includes('female') ||
+            voice.name.toLowerCase().includes('woman') ||
+            (voice.gender && voice.gender.toLowerCase() === 'female')
+          );
+        }
+        
+        // Final fallback: use first English voice
+        if (!selectedVoice) {
+          selectedVoice = voices.find(voice => 
+            voice.lang.startsWith('en-')
+          );
+        }
+        
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          console.log('🔊 Selected voice:', selectedVoice.name);
+        } else {
+          console.log('⚠️ Using default voice');
+        }
       }
+      // Add this inside your VideoSession component, before the return statement
+const testSpeech = () => {
+  console.log('🧪 Testing speech synthesis...');
+  
+  const testText = "Hello, this is a test of the speech synthesis system.";
+  
+  if ('speechSynthesis' in window) {
+    const utterance = new SpeechSynthesisUtterance(testText);
+    utterance.volume = 1.0;
+    utterance.rate = 0.8;
+    utterance.pitch = 1.0;
+    
+    utterance.onstart = () => console.log('🔊 Test speech started');
+    utterance.onend = () => console.log('🔊 Test speech ended');
+    utterance.onerror = (e) => console.error('❌ Test speech error:', e);
+    
+    window.speechSynthesis.speak(utterance);
+  } else {
+    console.error('❌ Speech synthesis not supported');
+  }
+};
+      // Event listeners for debugging
+      utterance.onstart = () => {
+        console.log('🔊 Speech started');
+        setIsAISpeaking(true);
+      };
       
       utterance.onend = () => {
+        console.log('🔊 Speech ended');
         setIsAISpeaking(false);
       };
       
+      utterance.onerror = (event) => {
+        console.error('❌ Speech error:', event.error);
+        setIsAISpeaking(false);
+      };
+      
+      utterance.onpause = () => {
+        console.log('⏸️ Speech paused');
+      };
+      
+      utterance.onresume = () => {
+        console.log('▶️ Speech resumed');
+      };
+      
+      // Speak the text
       speechSynthesisRef.current = utterance;
+      console.log('🔊 About to speak...');
       window.speechSynthesis.speak(utterance);
+    };
+    
+    // Check if voices are already loaded
+    if (window.speechSynthesis.getVoices().length > 0) {
+      setVoiceAndSpeak();
+    } else {
+      // Wait for voices to load
+      console.log('⏳ Waiting for voices to load...');
+      window.speechSynthesis.onvoiceschanged = () => {
+        console.log('✅ Voices loaded');
+        setVoiceAndSpeak();
+        window.speechSynthesis.onvoiceschanged = null; // Remove listener
+      };
     }
-  };
-
+  } else {
+    console.error('❌ Speech synthesis not supported');
+    setIsAISpeaking(false);
+  }
+};
   // End session
   const endSession = async () => {
   try {
@@ -492,6 +599,7 @@ const VideoSession = ({ user }) => {
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
             {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
+              <button onClick={testSpeech} className="test-button">🔊 Test Speech</button>
           </div>
           <button onClick={endSession} className="end-session-button">
             End Google Ads Practice
