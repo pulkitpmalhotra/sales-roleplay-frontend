@@ -221,7 +221,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Speech recognition with improved detection and debugging
+  // Speech recognition with automatic real-time processing
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
@@ -260,23 +260,18 @@ const VideoSession = ({ user }) => {
           }
         }
         
-        // Show interim results to user for feedback
+        // Show interim results for immediate feedback
         if (interimTranscript.trim()) {
           console.log('🎤 Interim speech:', interimTranscript);
-          // You could show this in UI for debugging
+          setUserSpeechBuffer(interimTranscript.trim());
         }
         
         if (finalTranscript.trim()) {
           const cleanedText = finalTranscript.trim();
           console.log('🎤 Final speech detected:', cleanedText);
           
-          // Update buffer and timestamp
-          setUserSpeechBuffer(prev => {
-            const newBuffer = (prev + ' ' + cleanedText).trim();
-            console.log('🎤 Updated speech buffer:', newBuffer);
-            return newBuffer;
-          });
-          setLastUserSpeechTime(Date.now());
+          // Immediately process final speech for real-time conversation
+          setUserSpeechBuffer(cleanedText);
           
           // Clear existing timeout
           if (speechTimeoutRef.current) {
@@ -284,12 +279,11 @@ const VideoSession = ({ user }) => {
             console.log('🎤 Cleared existing timeout');
           }
           
-          // Set new timeout to process speech after user stops talking
-          console.log('🎤 Setting 1.5 second timeout to process speech');
-          speechTimeoutRef.current = setTimeout(() => {
-            console.log('🎤 Timeout triggered - processing speech now');
-            processUserSpeech();
-          }, 1500); // Reduced to 1.5 seconds for faster response
+          // Process speech immediately for real-time feel
+          console.log('🎤 Processing speech immediately for real-time conversation');
+          setTimeout(() => {
+            processUserSpeechRealtime(cleanedText);
+          }, 200); // Very short delay for natural feel
         }
       };
 
@@ -299,22 +293,8 @@ const VideoSession = ({ user }) => {
 
       recognition.onspeechend = () => {
         console.log('🎤 Speech ended being detected');
-      };
-
-      recognition.onsoundstart = () => {
-        console.log('🎤 Sound started being detected');
-      };
-
-      recognition.onsoundend = () => {
-        console.log('🎤 Sound ended being detected');
-      };
-
-      recognition.onaudiostart = () => {
-        console.log('🎤 Audio capture started');
-      };
-
-      recognition.onaudioend = () => {
-        console.log('🎤 Audio capture ended');
+        // Clear interim buffer when speech ends
+        setUserSpeechBuffer('');
       };
 
       recognition.onerror = (event) => {
@@ -323,7 +303,6 @@ const VideoSession = ({ user }) => {
         switch (event.error) {
           case 'no-speech':
             console.log('🎤 No speech detected - this is normal, continuing...');
-            // Don't treat this as an error, just continue
             break;
           case 'audio-capture':
             console.error('❌ Audio capture error - microphone issue');
@@ -335,7 +314,6 @@ const VideoSession = ({ user }) => {
             break;
           case 'network':
             console.error('❌ Network error during speech recognition');
-            // Just continue, don't show error to user
             break;
           case 'service-not-allowed':
             console.error('❌ Speech recognition service not allowed');
@@ -389,48 +367,40 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Process accumulated user speech with improved debugging
-  const processUserSpeech = async () => {
-    const currentBuffer = userSpeechBuffer.trim();
+  // Real-time speech processing for natural conversation flow
+  const processUserSpeechRealtime = async (speechText) => {
+    console.log('🎯 processUserSpeechRealtime called with:', speechText);
     
-    console.log('🎯 processUserSpeech called with buffer:', currentBuffer);
-    console.log('🎯 Current states:', {
-      bufferLength: currentBuffer.length,
-      isProcessing: isProcessingUserSpeech.current,
-      isAISpeaking,
-      waitingForAI
-    });
-    
-    if (!currentBuffer || currentBuffer.length < 3 || isProcessingUserSpeech.current) {
-      console.log('🎯 Skipping speech processing - conditions not met');
+    if (!speechText || speechText.length < 3 || isProcessingUserSpeech.current) {
+      console.log('🎯 Skipping real-time processing - conditions not met');
       return;
     }
 
-    console.log('🎯 Processing user speech:', currentBuffer);
+    console.log('🎯 Processing user speech in real-time:', speechText);
     isProcessingUserSpeech.current = true;
     setUserSpeechBuffer(''); // Clear buffer immediately
     setWaitingForAI(true);
 
     try {
-      // Add user message to conversation
+      // Add user message to conversation immediately
       console.log('🎯 Adding user message to conversation');
-      addToConversation('user', currentBuffer);
-      setTranscript(prev => prev + currentBuffer + ' ');
+      addToConversation('user', speechText);
+      setTranscript(prev => prev + speechText + ' ');
       
       const token = await user.getIdToken();
-      console.log('🔄 Sending to AI backend...');
+      console.log('🔄 Sending to AI backend for real-time response...');
       
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
         {
           sessionId: sessionId,
-          userMessage: currentBuffer,
+          userMessage: speechText,
           scenarioId: scenarioId,
           conversationHistory: conversation
         },
         { 
           headers: { Authorization: `Bearer ${token}` },
-          timeout: 15000 // 15 second timeout
+          timeout: 15000
         }
       );
       
@@ -441,36 +411,28 @@ const VideoSession = ({ user }) => {
         addToConversation('ai', aiResponse);
         setWaitingForAI(false);
         
-        // Small delay before AI responds (more natural)
+        // Minimal delay for natural conversation flow
         setTimeout(() => {
           speakText(aiResponse);
-        }, 800);
+        }, 500);
       } else {
         throw new Error('Empty AI response');
       }
       
     } catch (error) {
-      console.error('❌ Error getting AI response:', error);
+      console.error('❌ Error in real-time speech processing:', error);
       setWaitingForAI(false);
       
-      // Fallback responses based on error type
-      let fallbackResponse;
-      if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-        fallbackResponse = "I'm sorry, I need a moment to process that. Could you repeat your question?";
-      } else if (error.response?.status === 404) {
-        fallbackResponse = "I'm having trouble understanding. Could you rephrase that?";
-      } else {
-        fallbackResponse = "I'm sorry, could you say that again? I want to make sure I understand correctly.";
-      }
-      
+      // Quick fallback for real-time conversation
+      const fallbackResponse = "Could you repeat that? I want to make sure I understand.";
       addToConversation('ai', fallbackResponse);
       
       setTimeout(() => {
         speakText(fallbackResponse);
-      }, 500);
+      }, 300);
       
     } finally {
-      console.log('🎯 Speech processing completed, resetting flags');
+      console.log('🎯 Real-time speech processing completed');
       isProcessingUserSpeech.current = false;
     }
   };
@@ -702,35 +664,11 @@ const VideoSession = ({ user }) => {
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
             {isRecording && !isAISpeaking && !waitingForAI && (
-              <span>🎤 Listening for your response... (speak clearly)</span>
+              <span>🎤 Listening for your response... (speak naturally)</span>
             )}
-            {userSpeechBuffer && (
-              <span>📝 Detected: "{userSpeechBuffer.substring(0, 30)}..."</span>
-            )}
-          </div>
-          
-          {/* Debug and Manual Controls */}
-          <div className="debug-controls">
             {userSpeechBuffer && !waitingForAI && (
-              <button 
-                onClick={() => processUserSpeech()} 
-                className="process-speech-button"
-                title="Manually process detected speech"
-              >
-                Send Message
-              </button>
+              <span>📝 Processing: "{userSpeechBuffer.substring(0, 30)}..."</span>
             )}
-            
-            <button 
-              onClick={() => {
-                setUserSpeechBuffer('');
-                console.log('🧹 Cleared speech buffer');
-              }} 
-              className="clear-buffer-button"
-              title="Clear detected speech"
-            >
-              Clear
-            </button>
           </div>
           
           <button onClick={endSession} className="end-session-button">
@@ -765,10 +703,10 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="session-info">
-        {/* Real-time Speech Buffer Display */}
+        {/* Real-time Speech Feedback */}
         {userSpeechBuffer && (
           <div className="speech-buffer-section">
-            <h4>🎤 Currently Detected Speech:</h4>
+            <h4>🎤 Currently Speaking:</h4>
             <div className="speech-buffer-box">
               {userSpeechBuffer}
             </div>
@@ -781,12 +719,12 @@ const VideoSession = ({ user }) => {
           <div className="conversation-box">
             {conversation.length === 0 ? (
               <div className="empty-conversation">
-                <p>🎯 Conversation will appear here as you practice with {scenarioData?.ai_character_name || 'the AI character'}...</p>
-                <p>💡 <strong>Tips:</strong></p>
+                <p>🎯 Your conversation with {scenarioData?.ai_character_name || 'the AI character'} will appear here in real-time...</p>
+                <p>💡 <strong>Tips for Natural Conversation:</strong></p>
                 <ul>
-                  <li>Speak clearly into your microphone</li>
+                  <li>Speak naturally as you would in a real sales call</li>
                   <li>Wait for the AI to finish speaking before responding</li>
-                  <li>Watch for the "📝 Detected:" message to confirm your speech is heard</li>
+                  <li>The conversation flows automatically - no buttons needed!</li>
                 </ul>
               </div>
             ) : (
@@ -828,27 +766,26 @@ const VideoSession = ({ user }) => {
         {/* Full Transcript Display */}
         {transcript && (
           <div className="transcript-section">
-            <h4>📝 Full Session Transcript ({transcript.split(' ').length} words)</h4>
+            <h4>📝 Session Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
             <div className="transcript-box">
-              {transcript || 'Transcript will be generated as you speak...'}
+              {transcript || 'Your conversation transcript will appear here...'}
             </div>
           </div>
         )}
 
-        {/* Debug Information */}
+        {/* Minimal Debug Information */}
         <div className="debug-info">
           <details>
-            <summary>🔍 Debug Information (Click to expand)</summary>
+            <summary>🔍 Session Status</summary>
             <div className="debug-details">
-              <p><strong>Session ID:</strong> {sessionId}</p>
-              <p><strong>Scenario ID:</strong> {scenarioId}</p>
-              <p><strong>Speech Buffer:</strong> "{userSpeechBuffer}"</p>
-              <p><strong>Is Recording:</strong> {isRecording ? '✅' : '❌'}</p>
-              <p><strong>Is AI Speaking:</strong> {isAISpeaking ? '✅' : '❌'}</p>
-              <p><strong>Waiting for AI:</strong> {waitingForAI ? '✅' : '❌'}</p>
-              <p><strong>Processing Speech:</strong> {isProcessingUserSpeech.current ? '✅' : '❌'}</p>
-              <p><strong>Conversation Length:</strong> {conversation.length}</p>
               <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
+              <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>AI Status:</strong> {
+                isAISpeaking ? '🗣️ Speaking' : 
+                waitingForAI ? '🤖 Thinking' : 
+                '👂 Listening'
+              }</p>
+              <p><strong>Exchanges:</strong> {conversation.length}</p>
             </div>
           </details>
         </div>
