@@ -98,7 +98,7 @@ const Dashboard = ({ user }) => {
                 </div>
               ) : (
                 <div className="scenarios-grid">
-                  {scenarios.map((apiscenario) => (
+                  {scenarios.map((scenario) => (
                     <div key={scenario.id} className="scenario-card">
                       <h3>{scenario.title}</h3>
                       <p>{scenario.description}</p>
