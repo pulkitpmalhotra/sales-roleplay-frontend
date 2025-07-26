@@ -8,7 +8,7 @@ const VideoSession = ({ user }) => {
   const { scenarioId } = useParams();
   const navigate = useNavigate();
   
-  // All your existing state variables
+  // State variables
   const [callObject, setCallObject] = useState(null);
   const [sessionId, setSessionId] = useState(null);
   const [isRecording, setIsRecording] = useState(false);
@@ -20,91 +20,82 @@ const VideoSession = ({ user }) => {
   const [error, setError] = useState('');
   const [isAISpeaking, setIsAISpeaking] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
-  
-  // ADD THESE MISSING VARIABLES:
   const [scenarioData, setScenarioData] = useState(null);
   
+  // Refs
   const callFrameRef = useRef(null);
   const recognitionRef = useRef(null);
   const speechSynthesisRef = useRef(null);
-  const lastTranscriptLength = useRef(0);
 
   const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
-  // ADD THIS MISSING FUNCTION:
+  // Navigation function
   const goToDashboard = () => {
     navigate('/dashboard');
   };
 
-  // ... rest of your component
+  // Cleanup function
+  const cleanup = () => {
+    console.log('🧹 Starting cleanup...');
+    
+    // Stop Daily.co call
+    if (callObject) {
+      console.log('🧹 Destroying Daily.co call');
+      callObject.destroy();
+      setCallObject(null);
+    }
+    
+    // Stop speech recognition
+    if (recognitionRef.current) {
+      console.log('🧹 Stopping speech recognition');
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+      setIsRecording(false);
+    }
+    
+    // Stop speech synthesis
+    if (window.speechSynthesis) {
+      console.log('🧹 Stopping speech synthesis');
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.pause();
+    }
+    
+    // Clear speech synthesis ref
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current = null;
+    }
+    
+    // Reset AI speaking state
+    setIsAISpeaking(false);
+    setWaitingForAI(false);
+    
+    console.log('🧹 Cleanup completed');
+  };
 
-  useEffect(() => {
-    initializeSession();
-    return () => {
-      cleanup();
-    };
-  }, []);
-
- const cleanup = () => {
-  console.log('🧹 Starting cleanup...'); // Debug log
-  
-  // Stop Daily.co call
-  if (callObject) {
-    console.log('🧹 Destroying Daily.co call');
-    callObject.destroy();
-    setCallObject(null);
-  }
-  
-  // Stop speech recognition
-  if (recognitionRef.current) {
-    console.log('🧹 Stopping speech recognition');
-    recognitionRef.current.stop();
-    recognitionRef.current = null;
-    setIsRecording(false);
-  }
-  
-  // Stop speech synthesis (THIS IS KEY!)
-  if (window.speechSynthesis) {
-    console.log('🧹 Stopping speech synthesis');
-    window.speechSynthesis.cancel(); // Stop all speech
-    window.speechSynthesis.pause();  // Pause any queued speech
-  }
-  
-  // Clear speech synthesis ref
-  if (speechSynthesisRef.current) {
-    speechSynthesisRef.current = null;
-  }
-  
-  // Reset AI speaking state
-  setIsAISpeaking(false);
-  setWaitingForAI(false);
-  
-  console.log('🧹 Cleanup completed');
-};
-
+  // Initialize session
   const initializeSession = async () => {
-  try {
-    const token = await user.getIdToken();
-    const headers = { Authorization: `Bearer ${token}` };
+    try {
+      const token = await user.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
 
-    // ADD: Fetch scenario details first
-    const scenarioResponse = await axios.get(
-      `${API_BASE_URL}/api/scenarios`,
-      { headers }
-    );
-    
-    const currentScenario = scenarioResponse.data.find(s => 
-      s.scenario_id === scenarioId || s.id === scenarioId
-    );
-    
-    setScenarioData(currentScenario);
+      // Fetch scenario details first
+      const scenarioResponse = await axios.get(
+        `${API_BASE_URL}/api/scenarios`,
+        { headers }
+      );
+      
+      const currentScenario = scenarioResponse.data.find(s => 
+        s.scenario_id === scenarioId || s.id === scenarioId
+      );
+      
+      setScenarioData(currentScenario);
 
-    // Create video room
-    const roomResponse = await axios.post(
-      `${API_BASE_URL}/api/video/create-room`,
-      {},
-      { headers }
-    );
+      // Create video room
+      const roomResponse = await axios.post(
+        `${API_BASE_URL}/api/video/create-room`,
+        {},
+        { headers }
+      );
 
       // Start session
       const sessionResponse = await axios.post(
@@ -146,21 +137,22 @@ const VideoSession = ({ user }) => {
       // Join the call
       await daily.join();
 
-  } catch (error) {
-    console.error('Error initializing session:', error);
-    setError('Failed to start session');
-    setLoading(false);
-  }
-};
+    } catch (error) {
+      console.error('Error initializing session:', error);
+      setError('Failed to start session');
+      setLoading(false);
+    }
+  };
 
-
+  // AI character introduction
   const introduceAICharacter = () => {
-    const introduction = "Hi there! I'm Sarah Mitchell, IT Director here. I'm pretty busy today, so let's see what you've got. What company are you calling from?";
+    const introduction = `Hi there! I'm ${scenarioData?.ai_character_name || 'Sarah Mitchell'}, ${scenarioData?.ai_character_role || 'IT Director'}. I'm pretty busy today, so let's see what you've got. What company are you calling from?`;
     
     addToConversation('ai', introduction);
     speakText(introduction);
   };
 
+  // Speech recognition
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
@@ -179,7 +171,7 @@ const VideoSession = ({ user }) => {
         if (finalTranscript.trim()) {
           setTranscript(prev => prev + finalTranscript);
           
-          // Check if user finished speaking (new final transcript)
+          // Check if user finished speaking
           if (finalTranscript.length > 0 && !isAISpeaking && !waitingForAI) {
             handleUserSpeech(finalTranscript.trim());
           }
@@ -196,6 +188,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
+  // Handle user speech
   const handleUserSpeech = async (userMessage) => {
     if (userMessage.length < 10) return; // Ignore very short utterances
     
@@ -230,6 +223,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
+  // Add to conversation
   const addToConversation = (speaker, message) => {
     setConversation(prev => [...prev, {
       speaker,
@@ -238,6 +232,7 @@ const VideoSession = ({ user }) => {
     }]);
   };
 
+  // Text to speech
   const speakText = (text) => {
     if ('speechSynthesis' in window) {
       setIsAISpeaking(true);
@@ -247,7 +242,7 @@ const VideoSession = ({ user }) => {
       utterance.pitch = 1.1;
       utterance.volume = 0.8;
       
-      // Try to use a female voice for Sarah
+      // Try to use a female voice
       const voices = window.speechSynthesis.getVoices();
       const femaleVoice = voices.find(voice => 
         voice.name.toLowerCase().includes('female') || 
@@ -267,136 +262,180 @@ const VideoSession = ({ user }) => {
     }
   };
 
-const endSession = async () => {
-  alert('End session function called!'); // This should show immediately
-  console.log('🔴 END SESSION FUNCTION STARTED');
-  
-  try {
-    console.log('🔴 About to cleanup and redirect');
-    cleanup();
-    
-    // Simple immediate redirect for testing
-    console.log('🔴 Navigating to dashboard');
-    navigate('/dashboard');
-    
-  } catch (error) {
-    console.log('🔴 Error in endSession:', error);
-    alert('Error: ' + error.message);
+  // End session
+  const endSession = async () => {
+    try {
+      setLoading(true);
+      cleanup();
+
+      const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
+
+      const token = await user.getIdToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/api/sessions/end`,
+        {
+          sessionId: sessionId,
+          transcript: transcript,
+          duration: duration,
+          conversationHistory: conversation
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      console.log('🔍 Feedback object:', response.data.analysis);
+      setFeedback(response.data.analysis);
+      setLoading(false);
+
+    } catch (error) {
+      console.error('Error ending session:', error);
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 2000);
+    }
+  };
+
+  // Component lifecycle
+  useEffect(() => {
+    initializeSession();
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  // Loading state
+  if (loading && !feedback) {
+    return (
+      <div className="session-loading">
+        <div className="loading-spinner"></div>
+        <p>{sessionId ? 'Starting your practice session...' : 'Initializing...'}</p>
+      </div>
+    );
   }
-};
 
-  // ... (keep your existing loading, error, and feedback JSX the same)
- if (feedback) {
-  return (
-    <div className="video-session">
-      <div className="session-header google-ads">
-  <div className="session-title">
-    <h2>{scenarioData?.title}</h2>
-    <div className="session-context">
-      <span className="skill-area">{scenarioData?.sales_skill_area}</span>
-      <span className="buyer-persona">vs. {scenarioData?.buyer_persona}</span>
-      <span className="google-ads-focus">Focus: {scenarioData?.google_ads_focus}</span>
-    </div>
-  </div>
-  
-  <div className="session-controls">
-    <div className="ai-status">
-      {waitingForAI && <span>🤖 {scenarioData?.ai_character_name} is thinking...</span>}
-      {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name} is speaking...</span>}
-      {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
-    </div>
-    <button onClick={endSession} className="end-session-button">
-      End Google Ads Practice
-    </button>
-  </div>
-</div>
-        // Update feedback display in VideoSession.js
+  // Error state
+  if (error) {
+    return (
+      <div className="session-error">
+        <h2>Session Error</h2>
+        <p>{error}</p>
+        <button onClick={goToDashboard} className="back-button">
+          Back to Dashboard
+        </button>
+      </div>
+    );
+  }
 
-
-  return (
-    <div className="feedback-container google-ads">
-      <div className="feedback-card">
-        <h2>🎯 Google Ads Sales Performance</h2>
-        <p>Your {feedback?.skillArea || 'sales'} practice session results:</p>
-        
-        <div className="google-ads-metrics">
-          <div className="metric-category">
-            <h3>Core Google Ads Skills</h3>
-            <div className="metrics-grid">
-              <div className="metric">
-                <h4>Discovery</h4>
-                <div className="score-circle">{feedback?.discovery_score || feedback?.talkTimeRatio || 50}/5</div>
-                <p>Asking the right questions</p>
-              </div>
-              
-              <div className="metric">
-                <h4>Product Knowledge</h4>
-                <div className="score-circle">{feedback?.product_knowledge_score || feedback?.confidenceScore || 50}/5</div>
-                <p>Google Ads expertise</p>
-              </div>
-              
-              <div className="metric">
-                <h4>Objection Handling</h4>
-                <div className="score-circle">{feedback?.objection_handling_score || 3}/5</div>
-                <p>Addressing concerns</p>
-              </div>
-              
-              <div className="metric">
-                <h4>Solution Fit</h4>
-                <div className="score-circle">{feedback?.solution_fit_score || 3}/5</div>
-                <p>Matching products to needs</p>
+  // Feedback state
+  if (feedback) {
+    return (
+      <div className="feedback-container google-ads">
+        <div className="feedback-card">
+          <h2>🎯 Google Ads Sales Performance</h2>
+          <p>Your {feedback?.skillArea || scenarioData?.sales_skill_area || 'sales'} practice session results:</p>
+          
+          <div className="google-ads-metrics">
+            <div className="metric-category">
+              <h3>Core Google Ads Skills</h3>
+              <div className="metrics-grid">
+                <div className="metric">
+                  <h4>Talk Time</h4>
+                  <div className="score-circle">{feedback?.talkTimeRatio || 50}%</div>
+                  <p>Percentage of time speaking</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Confidence</h4>
+                  <div className="score-circle">{feedback?.confidenceScore || 75}/100</div>
+                  <p>Based on speech patterns</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Filler Words</h4>
+                  <div className="score-circle">{feedback?.fillerWordCount || 0}</div>
+                  <p>Times you used "um", "uh", etc.</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Conversation</h4>
+                  <div className="score-circle">{conversation.length}</div>
+                  <p>Number of exchanges</p>
+                </div>
               </div>
             </div>
+            
+            {feedback?.google_ads_concepts_used && feedback.google_ads_concepts_used.length > 0 && (
+              <div className="google-ads-concepts">
+                <h4>Google Ads Concepts Used</h4>
+                <div className="concepts-list">
+                  {feedback.google_ads_concepts_used.map((concept, index) => (
+                    <span key={index} className="concept-tag">{concept}</span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-          
-          {feedback?.google_ads_concepts_used && feedback.google_ads_concepts_used.length > 0 && (
-            <div className="google-ads-concepts">
-              <h4>Google Ads Concepts Used</h4>
-              <div className="concepts-list">
-                {feedback.google_ads_concepts_used.map((concept, index) => (
-                  <span key={index} className="concept-tag">{concept}</span>
-                ))}
+
+          {feedback?.aiFeedback && (
+            <div className="ai-feedback-section google-ads">
+              <h3>🎯 Google Ads Coach Feedback</h3>
+              <div className="ai-feedback-text">
+                {feedback.aiFeedback}
               </div>
             </div>
           )}
-        </div>
-
-        {feedback?.aiFeedback && (
-          <div className="ai-feedback-section google-ads">
-            <h3>🎯 Google Ads Coach Feedback</h3>
-            <div className="ai-feedback-text">
-              {feedback.aiFeedback}
+          
+          {feedback?.coachingRecommendations && feedback.coachingRecommendations.length > 0 && (
+            <div className="coaching-recommendations">
+              <h4>📚 Next Steps to Improve</h4>
+              <ul>
+                {feedback.coachingRecommendations.map((rec, index) => (
+                  <li key={index}>{rec}</li>
+                ))}
+              </ul>
             </div>
-          </div>
-        )}
-        
-        {feedback?.coachingRecommendations && feedback.coachingRecommendations.length > 0 && (
-          <div className="coaching-recommendations">
-            <h4>📚 Next Steps to Improve</h4>
-            <ul>
-              {feedback.coachingRecommendations.map((rec, index) => (
-                <li key={index}>{rec}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+          )}
 
-        <div className="feedback-actions">
-          <button onClick={goToDashboard} className="primary-button">
-            Back to Dashboard
-          </button>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="secondary-button"
-          >
-            Practice Again
+          <div className="feedback-actions">
+            <button onClick={goToDashboard} className="primary-button">
+              Back to Dashboard
+            </button>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="secondary-button"
+            >
+              Practice Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Active session state
+  return (
+    <div className="video-session">
+      <div className="session-header google-ads">
+        <div className="session-title">
+          <h2>{scenarioData?.title || 'Google Ads Practice Session'}</h2>
+          <div className="session-context">
+            <span className="skill-area">{scenarioData?.sales_skill_area || 'Sales Skills'}</span>
+            <span className="buyer-persona">vs. {scenarioData?.buyer_persona || 'Customer'}</span>
+            <span className="google-ads-focus">Focus: {scenarioData?.google_ads_focus || 'General'}</span>
+          </div>
+        </div>
+        
+        <div className="session-controls">
+          <div className="ai-status">
+            {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
+            {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
+            {isRecording && !isAISpeaking && <span>🎤 Listening for your response...</span>}
+          </div>
+          <button onClick={endSession} className="end-session-button">
+            End Google Ads Practice
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-}
+
       <div className="video-container" ref={callFrameRef}>
         {/* Daily.co video will appear here */}
       </div>
@@ -407,11 +446,11 @@ const endSession = async () => {
           <div className="conversation-box">
             {conversation.map((msg, index) => (
               <div key={index} className={`message ${msg.speaker}`}>
-                <strong>{msg.speaker === 'user' ? 'You' : 'Sarah'}:</strong> {msg.message}
+                <strong>{msg.speaker === 'user' ? 'You' : scenarioData?.ai_character_name || 'AI'}:</strong> {msg.message}
               </div>
             ))}
             {conversation.length === 0 && (
-              <p>Conversation will appear here as you talk with Sarah...</p>
+              <p>Conversation will appear here as you talk with {scenarioData?.ai_character_name || 'the AI character'}...</p>
             )}
           </div>
         </div>
