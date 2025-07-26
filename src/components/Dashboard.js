@@ -11,6 +11,7 @@ const Dashboard = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('scenarios');
   
+  
 const [sessionsData, setSessionsData] = useState({ sessions: [], pagination: {}, summary: {} });
   const [sessionFilters, setSessionFilters] = useState({
     scenario: 'all',
@@ -19,7 +20,9 @@ const [sessionsData, setSessionsData] = useState({ sessions: [], pagination: {},
   });
   const [selectedSession, setSelectedSession] = useState(null);
   const [showSessionDetails, setShowSessionDetails] = useState(false);
-
+const [skillAreaFilter, setSkillAreaFilter] = useState('all');
+const [verticalFilter, setVerticalFilter] = useState('all');
+  
   const navigate = useNavigate();
   const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
@@ -160,24 +163,46 @@ const viewSessionDetails = async (sessionId) => {
                   <small>Tip: Ask your administrator to add practice scenarios to your Google Sheet.</small>
                 </div>
               ) : (
-                <div className="scenarios-grid">
-                  {(scenarios || []).map((scenario) => (
-                    <div key={scenario.id} className="scenario-card">
-                      <h3>{scenario.title}</h3>
-                      <p>{scenario.description}</p>
-                      <div className="scenario-meta">
-                        <span className="difficulty">{scenario.difficulty}</span>
-                        <span className="category">{scenario.category}</span>
-                      </div>
-                      <button
-                        onClick={() => startRoleplay(scenario.id)}
-                        className="start-button"
-                      >
-                        Start Practice
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                // Update scenario card display
+<div className="scenarios-grid">
+  {scenarios.map((scenario) => (
+    <div key={scenario.scenario_id} className="scenario-card google-ads">
+      <div className="scenario-header">
+        <h3>{scenario.title}</h3>
+        <div className="scenario-badges">
+          <span className={`skill-badge ${scenario.sales_skill_area.toLowerCase().replace(/\s+/g, '-')}`}>
+            {scenario.sales_skill_area}
+          </span>
+          <span className="difficulty-badge">{scenario.difficulty}</span>
+        </div>
+      </div>
+      
+      <p>{scenario.description}</p>
+      
+      <div className="scenario-details">
+        <div className="detail-row">
+          <strong>Buyer:</strong> {scenario.buyer_persona}
+        </div>
+        <div className="detail-row">
+          <strong>Focus:</strong> {scenario.google_ads_focus}
+        </div>
+        <div className="detail-row">
+          <strong>Vertical:</strong> {scenario.business_vertical}
+        </div>
+        <div className="detail-row">
+          <strong>Goal:</strong> {scenario.scenario_objectives}
+        </div>
+      </div>
+      
+      <button
+        onClick={() => startRoleplay(scenario.scenario_id)}
+        className="start-button google-ads"
+      >
+        Start Google Ads Practice
+      </button>
+    </div>
+  ))}
+</div>
               )}
             </div>
           )}
@@ -205,30 +230,35 @@ const viewSessionDetails = async (sessionId) => {
       
       {/* Filters */}
       <div className="session-filters">
-        <select 
-          value={sessionFilters.scenario} 
-          onChange={(e) => handleFilterChange('scenario', e.target.value)}
-          className="filter-select"
-        >
-          <option value="all">All Scenarios</option>
-          {scenarios.map(scenario => (
-            <option key={scenario.id} value={scenario.id}>
-              {scenario.title}
-            </option>
-          ))}
-        </select>
-        
-        <select 
-          value={sessionFilters.limit} 
-          onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
-          className="filter-select"
-        >
-          <option value={6}>Show 6</option>
-          <option value={12}>Show 12</option>
-          <option value={24}>Show 24</option>
-        </select>
-      </div>
-    </div>
+  <select 
+    value={skillAreaFilter} 
+    onChange={(e) => {
+      setSkillAreaFilter(e.target.value);
+      // Reload scenarios with filter
+    }}
+    className="filter-select"
+  >
+    <option value="all">All Skill Areas</option>
+    <option value="Prospecting & Outreach">Prospecting & Outreach</option>
+    <option value="Discovery & Consultative Selling">Discovery & Consultative Selling</option>
+    <option value="Objection Handling">Objection Handling</option>
+    <option value="Pitching & Presenting">Pitching & Presenting</option>
+    <option value="Optimization & Renewals">Optimization & Renewals</option>
+  </select>
+  
+  <select 
+    value={verticalFilter} 
+    onChange={(e) => setVerticalFilter(e.target.value)}
+    className="filter-select"
+  >
+    <option value="all">All Verticals</option>
+    <option value="Local Business">Local Business</option>
+    <option value="E-commerce">E-commerce</option>
+    <option value="B2B SaaS">B2B SaaS</option>
+    <option value="Retail">Retail</option>
+    <option value="Agency">Agency</option>
+  </select>
+</div>
 
     {sessionsData.sessions.length === 0 ? (
       <div className="empty-state">
