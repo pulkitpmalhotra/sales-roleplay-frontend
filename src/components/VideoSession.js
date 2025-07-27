@@ -789,8 +789,6 @@ const VideoSession = ({ user }) => {
       </div>
     );
   }
-          </div>
-
           {feedback?.aiFeedback && (
             <div className="ai-feedback-section google-ads">
               <h3>🎯 Coach Feedback</h3>
