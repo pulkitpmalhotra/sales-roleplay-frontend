@@ -24,6 +24,7 @@ const VideoSession = ({ user }) => {
   const [scenarioData, setScenarioData] = useState(null);
   const [userSpeechBuffer, setUserSpeechBuffer] = useState('');
   const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
+  const [isListening, setIsListening] = useState(false);
   
   // Refs
   const callFrameRef = useRef(null);
@@ -31,6 +32,7 @@ const VideoSession = ({ user }) => {
   const speechSynthesisRef = useRef(null);
   const speechTimeoutRef = useRef(null);
   const isProcessingUserSpeech = useRef(false);
+  const listeningTimeoutRef = useRef(null);
 
   const API_BASE_URL = 'https://sales-roleplay-backend-production-468a.up.railway.app';
 
@@ -47,6 +49,11 @@ const VideoSession = ({ user }) => {
     if (speechTimeoutRef.current) {
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
+    }
+    
+    if (listeningTimeoutRef.current) {
+      clearTimeout(listeningTimeoutRef.current);
+      listeningTimeoutRef.current = null;
     }
     
     // Stop Daily.co call
@@ -92,6 +99,7 @@ const VideoSession = ({ user }) => {
     // Reset AI speaking state
     setIsAISpeaking(false);
     setWaitingForAI(false);
+    setIsListening(false);
     setUserSpeechBuffer('');
     isProcessingUserSpeech.current = false;
     
@@ -168,7 +176,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Speech recognition with simplified, reliable flow
+  // Speech recognition with improved listening state management
   const startSpeechRecognition = () => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new window.webkitSpeechRecognition();
@@ -179,6 +187,7 @@ const VideoSession = ({ user }) => {
       recognition.onstart = () => {
         console.log('🎤 Speech recognition started successfully');
         setIsRecording(true);
+        setIsListening(true); // Set listening state when recognition starts
       };
 
       recognition.onresult = (event) => {
@@ -188,25 +197,60 @@ const VideoSession = ({ user }) => {
           return;
         }
 
-        let finalTranscript = '';
+        // Maintain listening state during speech detection
+        setIsListening(true);
         
-        // Get only final results
+        // Clear any existing listening timeout
+        if (listeningTimeoutRef.current) {
+          clearTimeout(listeningTimeoutRef.current);
+          listeningTimeoutRef.current = null;
+        }
+
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        // Get both final and interim results
         for (let i = event.resultIndex; i < event.results.length; i++) {
           if (event.results[i].isFinal) {
             finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
           }
         }
         
+        // Show interim results in speech buffer for better UX
+        if (interimTranscript.trim()) {
+          setUserSpeechBuffer(interimTranscript.trim());
+          console.log('🎤 Interim speech:', interimTranscript.trim());
+        }
+        
+        // Process final results
         if (finalTranscript.trim() && finalTranscript.length > 2) {
           console.log('🎤 Final speech detected:', finalTranscript);
+          
+          // Clear speech buffer and process
+          setUserSpeechBuffer('');
           
           // Clear any existing timeout
           if (speechTimeoutRef.current) {
             clearTimeout(speechTimeoutRef.current);
           }
           
-          // Process immediately for responsive conversation
-          processUserSpeechRealtime(finalTranscript.trim());
+          // Add delay before changing state to allow for continued speech
+          listeningTimeoutRef.current = setTimeout(() => {
+            // Only change state if no new speech is detected
+            if (!isProcessingUserSpeech.current && !isAISpeaking) {
+              processUserSpeechRealtime(finalTranscript.trim());
+            }
+          }, 1000); // 1 second delay to allow for continued speech
+        } else {
+          // For interim results, maintain listening state with a longer timeout
+          listeningTimeoutRef.current = setTimeout(() => {
+            if (!isProcessingUserSpeech.current && !isAISpeaking && !waitingForAI) {
+              setIsListening(true); // Keep listening
+              setUserSpeechBuffer(''); // Clear buffer after silence
+            }
+          }, 3000); // 3 seconds of silence before clearing buffer
         }
       };
 
@@ -216,10 +260,12 @@ const VideoSession = ({ user }) => {
         // Only show error for serious issues
         if (event.error === 'not-allowed') {
           setError('Microphone access denied. Please allow microphone access and refresh.');
+          setIsListening(false);
         } else if (event.error === 'audio-capture') {
           setError('Microphone not accessible. Please check your microphone.');
+          setIsListening(false);
         }
-        // Ignore other errors like 'no-speech'
+        // For other errors like 'no-speech', maintain listening state
       };
 
       recognition.onend = () => {
@@ -231,20 +277,25 @@ const VideoSession = ({ user }) => {
             if (recognitionRef.current && !isEndingSession) {
               try {
                 recognition.start();
+                setIsListening(true); // Maintain listening state on restart
               } catch (e) {
                 console.log('🎤 Restart failed, retrying...');
                 setTimeout(() => {
                   if (recognitionRef.current) {
                     try {
                       recognition.start();
+                      setIsListening(true);
                     } catch (e2) {
                       console.error('🎤 Failed to restart recognition');
+                      setIsListening(false);
                     }
                   }
                 }, 1000);
               }
             }
           }, 100);
+        } else {
+          setIsListening(false);
         }
       };
 
@@ -255,13 +306,15 @@ const VideoSession = ({ user }) => {
       } catch (e) {
         console.error('❌ Failed to start speech recognition:', e);
         setError('Speech recognition failed to start. Please refresh and try again.');
+        setIsListening(false);
       }
     } else {
       setError('Speech recognition not supported. Please use Chrome browser.');
+      setIsListening(false);
     }
   };
 
-  // Simplified speech processing with conversation history
+  // Simplified speech processing with improved state management
   const processUserSpeechRealtime = async (speechText) => {
     console.log('🎯 PROCESSING USER SPEECH:', speechText);
     console.log('🎯 Current conversation length:', conversation.length);
@@ -269,6 +322,8 @@ const VideoSession = ({ user }) => {
     // Validation
     if (!speechText || speechText.length < 2) {
       console.log('🎯 Speech too short, ignoring');
+      // Return to listening state
+      setIsListening(true);
       return;
     }
     
@@ -277,8 +332,15 @@ const VideoSession = ({ user }) => {
       return;
     }
 
-    // Set processing state
+    // Clear listening timeout since we're processing speech
+    if (listeningTimeoutRef.current) {
+      clearTimeout(listeningTimeoutRef.current);
+      listeningTimeoutRef.current = null;
+    }
+
+    // Set processing state - this will override listening
     isProcessingUserSpeech.current = true;
+    setIsListening(false); // Stop listening while processing
     setUserSpeechBuffer('');
     setWaitingForAI(true);
 
@@ -372,6 +434,12 @@ const VideoSession = ({ user }) => {
       
     } finally {
       isProcessingUserSpeech.current = false;
+      // Return to listening after processing is complete and AI finishes speaking
+      setTimeout(() => {
+        if (!isAISpeaking && !waitingForAI) {
+          setIsListening(true);
+        }
+      }, 500);
       console.log('🎯 Speech processing completed');
     }
   };
@@ -556,18 +624,31 @@ const VideoSession = ({ user }) => {
         utterance.onstart = () => {
           console.log('🔊 Speech started with voice:', utterance.voice?.name || 'default');
           setIsAISpeaking(true);
+          setIsListening(false); // Stop listening while AI is speaking
         };
         
         utterance.onend = () => {
           console.log('🔊 Speech ended');
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
+          // Return to listening after AI finishes speaking
+          setTimeout(() => {
+            if (!waitingForAI && !isProcessingUserSpeech.current) {
+              setIsListening(true);
+            }
+          }, 500); // Small delay to ensure clean state transition
         };
         
         utterance.onerror = (event) => {
           console.error('❌ Speech error:', event.error);
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
+          // Return to listening on error
+          setTimeout(() => {
+            if (!waitingForAI && !isProcessingUserSpeech.current) {
+              setIsListening(true);
+            }
+          }, 500);
         };
         
         // Speak the text
@@ -807,11 +888,14 @@ const VideoSession = ({ user }) => {
           <div className="ai-status">
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
-            {isRecording && !isAISpeaking && !waitingForAI && (
+            {isListening && !isAISpeaking && !waitingForAI && (
               <span>🎤 Listening...</span>
             )}
             {userSpeechBuffer && !waitingForAI && (
               <span>📝 Processing: "{userSpeechBuffer.substring(0, 30)}..."</span>
+            )}
+            {!isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
+              <span>⏸️ Ready</span>
             )}
           </div>
           
@@ -835,10 +919,10 @@ const VideoSession = ({ user }) => {
               <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
               {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
               {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
-              {!isAISpeaking && !waitingForAI && isRecording && (
+              {isListening && !isAISpeaking && !waitingForAI && (
                 <div className="listening-indicator">Listening...</div>
               )}
-              {!isRecording && !isAISpeaking && !waitingForAI && (
+              {!isListening && !isAISpeaking && !waitingForAI && (
                 <div className="ready-indicator">Ready to talk</div>
               )}
             </div>
@@ -918,10 +1002,12 @@ const VideoSession = ({ user }) => {
             <div className="debug-details">
               <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
               <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
               <p><strong>AI Status:</strong> {
                 isAISpeaking ? '🗣️ Speaking' : 
                 waitingForAI ? '🤖 Thinking' : 
-                '👂 Listening'
+                isListening ? '👂 Listening' :
+                '⏸️ Ready'
               }</p>
               <p><strong>Exchanges:</strong> {conversation.length}</p>
             </div>
