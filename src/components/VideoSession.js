@@ -367,12 +367,21 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Real-time speech processing with enhanced role validation
+  // Real-time speech processing with better error handling and logging
   const processUserSpeechRealtime = async (speechText) => {
-    console.log('🎯 processUserSpeechRealtime called with:', speechText);
+    console.log('🎯 ===== SPEECH PROCESSING START =====');
+    console.log('🎯 Input speech text:', speechText);
+    console.log('🎯 Speech text length:', speechText.length);
+    console.log('🎯 Current states:', {
+      isProcessing: isProcessingUserSpeech.current,
+      isAISpeaking,
+      waitingForAI,
+      sessionId,
+      scenarioId
+    });
     
     if (!speechText || speechText.length < 3 || isProcessingUserSpeech.current) {
-      console.log('🎯 Skipping real-time processing - conditions not met');
+      console.log('🎯 Skipping processing - conditions not met');
       return;
     }
 
@@ -383,21 +392,27 @@ const VideoSession = ({ user }) => {
 
     try {
       // Add user message to conversation immediately
-      console.log('🎯 Adding USER (salesperson) message to conversation');
+      console.log('🎯 Adding USER message to conversation');
       addToConversation('user', speechText);
       setTranscript(prev => prev + `[You]: ${speechText} `);
       
       const token = await user.getIdToken();
-      console.log('🔄 Sending to AI backend for CUSTOMER response...');
+      console.log('🔄 Sending request to AI backend...');
+      console.log('🔄 API URL:', `${API_BASE_URL}/api/ai/chat`);
+      console.log('🔄 Request payload:', {
+        sessionId,
+        userMessage: speechText,
+        scenarioId,
+        conversationHistoryLength: conversation.length
+      });
       
-      // Send the current conversation to maintain context but prevent role confusion
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
         {
           sessionId: sessionId,
           userMessage: speechText,
           scenarioId: scenarioId,
-          conversationHistory: conversation // This maintains conversation context
+          conversationHistory: conversation
         },
         { 
           headers: { Authorization: `Bearer ${token}` },
@@ -405,42 +420,48 @@ const VideoSession = ({ user }) => {
         }
       );
       
+      console.log('✅ AI backend response received:', response.data);
       const aiResponse = response.data.response;
-      console.log('🤖 AI CUSTOMER response received:', aiResponse);
+      const characterName = response.data.character;
       
       if (aiResponse && aiResponse.trim()) {
-        // Double-check that AI is responding as customer, not salesperson
-        const isValidCustomerResponse = !aiResponse.toLowerCase().includes('let me sell you') &&
-                                       !aiResponse.toLowerCase().includes('here\'s my pitch') &&
-                                       !aiResponse.toLowerCase().includes('i recommend');
+        console.log('✅ Valid AI response:', aiResponse);
+        console.log('✅ Character name:', characterName);
         
-        if (isValidCustomerResponse) {
-          console.log('✅ Valid customer response, adding to conversation');
-          addToConversation('ai', aiResponse);
-          setTranscript(prev => prev + `[${scenarioData?.ai_character_name || 'Customer'}]: ${aiResponse} `);
-        } else {
-          console.log('⚠️ Invalid response detected, using fallback');
-          const fallbackResponse = "I'm not sure I understand. Can you explain how this helps my business?";
-          addToConversation('ai', fallbackResponse);
-          setTranscript(prev => prev + `[${scenarioData?.ai_character_name || 'Customer'}]: ${fallbackResponse} `);
-        }
-        
+        addToConversation('ai', aiResponse);
+        setTranscript(prev => prev + `[${characterName}]: ${aiResponse} `);
         setWaitingForAI(false);
         
-        // Minimal delay for natural conversation flow
+        // Speak the AI response
         setTimeout(() => {
           speakText(aiResponse);
         }, 500);
       } else {
-        throw new Error('Empty AI response');
+        throw new Error('Empty AI response received');
       }
       
     } catch (error) {
-      console.error('❌ Error in real-time speech processing:', error);
+      console.error('❌ ERROR in speech processing:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+      
       setWaitingForAI(false);
       
-      // Quick fallback for real-time conversation - always stay in customer role
-      const fallbackResponse = "Could you repeat that? I want to make sure I understand.";
+      // Better error-specific fallback
+      let fallbackResponse;
+      if (error.response?.status === 404) {
+        fallbackResponse = `I think there's an issue with finding the scenario. Let me try again - what were you saying about your business?`;
+      } else if (error.message.includes('timeout')) {
+        fallbackResponse = `Sorry, I need a moment to process that. Could you tell me again what you're offering?`;
+      } else {
+        fallbackResponse = `I apologize, I had trouble understanding. What company are you calling from?`;
+      }
+      
+      console.log('🔄 Using fallback response:', fallbackResponse);
       addToConversation('ai', fallbackResponse);
       setTranscript(prev => prev + `[Customer]: ${fallbackResponse} `);
       
@@ -449,8 +470,9 @@ const VideoSession = ({ user }) => {
       }, 300);
       
     } finally {
-      console.log('🎯 Real-time speech processing completed');
+      console.log('🎯 Speech processing completed, resetting flags');
       isProcessingUserSpeech.current = false;
+      console.log('🎯 ===== SPEECH PROCESSING END =====');
     }
   };
 
