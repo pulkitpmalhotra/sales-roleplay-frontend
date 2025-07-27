@@ -818,4 +818,29 @@ const VideoSession = ({ user }) => {
               <p><strong>Recognition Active:</strong> {recognitionActive ? '✅ Yes' : '❌ No'}</p>
               <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
               <p><strong>AI Status:</strong> {
-                isAISpeaking ? '🗣️
+                isAISpeaking ? '🗣️ Speaking' : 
+                waitingForAI ? '🤖 Thinking' : 
+                isListening ? '👂 Listening' :
+                '⏸️ Ready'
+              }</p>
+              <p><strong>Speech Buffer:</strong> {userSpeechBuffer || 'Empty'}</p>
+              <p><strong>Exchanges:</strong> {conversation.length}</p>
+              <p><strong>Browser:</strong> {navigator.userAgent.includes('Chrome') ? 'Chrome ✅' : 'Other ⚠️'}</p>
+              
+              <div style={{marginTop: '10px'}}>
+                <strong>Debug Log:</strong>
+                {debugInfo.map((msg, i) => (
+                  <div key={i} style={{fontSize: '11px', color: '#666', marginTop: '2px'}}>
+                    {msg}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VideoSession;
