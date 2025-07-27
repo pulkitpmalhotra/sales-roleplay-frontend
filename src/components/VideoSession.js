@@ -242,7 +242,7 @@ const VideoSession = ({ user }) => {
             if (!isProcessingUserSpeech.current && !isAISpeaking) {
               processUserSpeechRealtime(finalTranscript.trim());
             }
-          }, 1000); // 1 second delay to allow for continued speech
+          }, 2500); // Increased to 2.5 seconds delay to allow for continued speech
         } else {
           // For interim results, maintain listening state with a longer timeout
           listeningTimeoutRef.current = setTimeout(() => {
@@ -250,7 +250,7 @@ const VideoSession = ({ user }) => {
               setIsListening(true); // Keep listening
               setUserSpeechBuffer(''); // Clear buffer after silence
             }
-          }, 3000); // 3 seconds of silence before clearing buffer
+          }, 5000); // Increased to 5 seconds of silence before clearing buffer
         }
       };
 
@@ -435,11 +435,12 @@ const VideoSession = ({ user }) => {
     } finally {
       isProcessingUserSpeech.current = false;
       // Return to listening after processing is complete and AI finishes speaking
+      // Increased delay to allow for more natural conversation flow
       setTimeout(() => {
         if (!isAISpeaking && !waitingForAI) {
           setIsListening(true);
         }
-      }, 500);
+      }, 1000); // Increased to 1 second delay
       console.log('🎯 Speech processing completed');
     }
   };
@@ -631,24 +632,26 @@ const VideoSession = ({ user }) => {
           console.log('🔊 Speech ended');
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
-          // Return to listening after AI finishes speaking
+          // Return to listening after AI finishes speaking with 2-second silence
+          console.log('🔊 AI finished speaking, waiting 2 seconds before listening...');
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current) {
+              console.log('🔊 2-second silence complete, returning to listening state');
               setIsListening(true);
             }
-          }, 500); // Small delay to ensure clean state transition
+          }, 2000); // 2 seconds of silence after AI finishes speaking
         };
         
         utterance.onerror = (event) => {
           console.error('❌ Speech error:', event.error);
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
-          // Return to listening on error
+          // Return to listening on error with same 2-second delay
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current) {
               setIsListening(true);
             }
-          }, 500);
+          }, 2000); // 2 seconds delay even on error for consistency
         };
         
         // Speak the text
@@ -888,11 +891,11 @@ const VideoSession = ({ user }) => {
           <div className="ai-status">
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
-            {isListening && !isAISpeaking && !waitingForAI && (
+            {isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
               <span>🎤 Listening...</span>
             )}
             {userSpeechBuffer && !waitingForAI && (
-              <span>📝 Processing: "{userSpeechBuffer.substring(0, 30)}..."</span>
+              <span>📝 You're saying: "{userSpeechBuffer.substring(0, 40)}..."</span>
             )}
             {!isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
               <span>⏸️ Ready</span>
