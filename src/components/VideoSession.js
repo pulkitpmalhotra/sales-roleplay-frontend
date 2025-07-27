@@ -150,7 +150,7 @@ const VideoSession = ({ user }) => {
         setSessionStartTime(Date.now());
         startSpeechRecognition();
         
-        // DO NOT auto-introduce AI - wait for user to start conversation
+        // Session ready - waiting for user to start conversation
         console.log('✅ Session ready - waiting for user to start conversation');
       });
 
