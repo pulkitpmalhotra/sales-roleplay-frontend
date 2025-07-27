@@ -25,7 +25,6 @@ const VideoSession = ({ user }) => {
   const [userSpeechBuffer, setUserSpeechBuffer] = useState('');
   const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
   // Remove unused variables since AI no longer auto-introduces
-  // const [hasIntroduced, setHasIntroduced] = useState(false); // Removed - not needed
   
   // Refs
   const callFrameRef = useRef(null);
@@ -170,20 +169,6 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // AI character introduction
-  const introduceAICharacter = async () => {
-    if (hasIntroduced || isAISpeaking || waitingForAI) {
-      console.log('🎭 Skipping introduction - already done or AI busy');
-      return;
-    }
-
-    setHasIntroduced(true);
-    setWaitingForAI(true);
-
-    try {
-      console.log('🎭 Getting AI introduction...');
-      const token = await user.getIdToken();
-      
       // Use the AI chat endpoint to get a proper introduction
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
