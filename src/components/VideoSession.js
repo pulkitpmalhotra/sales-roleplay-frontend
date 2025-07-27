@@ -24,7 +24,8 @@ const VideoSession = ({ user }) => {
   const [scenarioData, setScenarioData] = useState(null);
   const [userSpeechBuffer, setUserSpeechBuffer] = useState('');
   const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
-  const [hasIntroduced, setHasIntroduced] = useState(false);
+  // Remove unused variables since AI no longer auto-introduces
+  // const [hasIntroduced, setHasIntroduced] = useState(false); // Removed - not needed
   
   // Refs
   const callFrameRef = useRef(null);
@@ -149,12 +150,8 @@ const VideoSession = ({ user }) => {
         setSessionStartTime(Date.now());
         startSpeechRecognition();
         
-        // AI introduces itself after a delay
-        setTimeout(() => {
-          if (!hasIntroduced) {
-            introduceAICharacter();
-          }
-        }, 2000);
+        // DO NOT auto-introduce AI - wait for user to start conversation
+        console.log('✅ Session ready - waiting for user to start conversation');
       });
 
       daily.on('error', (error) => {
@@ -367,44 +364,30 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Real-time speech processing with better error handling and logging
+  // Real-time speech processing - user initiates conversation
   const processUserSpeechRealtime = async (speechText) => {
-    console.log('🎯 ===== SPEECH PROCESSING START =====');
-    console.log('🎯 Input speech text:', speechText);
-    console.log('🎯 Speech text length:', speechText.length);
-    console.log('🎯 Current states:', {
-      isProcessing: isProcessingUserSpeech.current,
-      isAISpeaking,
-      waitingForAI,
-      sessionId,
-      scenarioId
-    });
+    console.log('🎯 ===== USER INITIATED SPEECH PROCESSING =====');
+    console.log('🎯 User said:', speechText);
+    console.log('🎯 This is user-initiated conversation');
     
     if (!speechText || speechText.length < 3 || isProcessingUserSpeech.current) {
       console.log('🎯 Skipping processing - conditions not met');
       return;
     }
 
-    console.log('🎯 Processing user speech in real-time:', speechText);
+    console.log('🎯 Processing user speech (user started conversation)');
     isProcessingUserSpeech.current = true;
     setUserSpeechBuffer(''); // Clear buffer immediately
     setWaitingForAI(true);
 
     try {
       // Add user message to conversation immediately
-      console.log('🎯 Adding USER message to conversation');
+      console.log('🎯 Adding USER message to conversation (user initiated)');
       addToConversation('user', speechText);
       setTranscript(prev => prev + `[You]: ${speechText} `);
       
       const token = await user.getIdToken();
-      console.log('🔄 Sending request to AI backend...');
-      console.log('🔄 API URL:', `${API_BASE_URL}/api/ai/chat`);
-      console.log('🔄 Request payload:', {
-        sessionId,
-        userMessage: speechText,
-        scenarioId,
-        conversationHistoryLength: conversation.length
-      });
+      console.log('🔄 Sending to AI backend for customer response...');
       
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
@@ -412,7 +395,7 @@ const VideoSession = ({ user }) => {
           sessionId: sessionId,
           userMessage: speechText,
           scenarioId: scenarioId,
-          conversationHistory: conversation
+          conversationHistory: conversation // Send conversation for context
         },
         { 
           headers: { Authorization: `Bearer ${token}` },
@@ -425,8 +408,7 @@ const VideoSession = ({ user }) => {
       const characterName = response.data.character;
       
       if (aiResponse && aiResponse.trim()) {
-        console.log('✅ Valid AI response:', aiResponse);
-        console.log('✅ Character name:', characterName);
+        console.log('✅ Valid AI customer response:', aiResponse);
         
         addToConversation('ai', aiResponse);
         setTranscript(prev => prev + `[${characterName}]: ${aiResponse} `);
@@ -441,38 +423,24 @@ const VideoSession = ({ user }) => {
       }
       
     } catch (error) {
-      console.error('❌ ERROR in speech processing:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        config: error.config
-      });
-      
+      console.error('❌ ERROR in user-initiated speech processing:', error);
       setWaitingForAI(false);
       
-      // Better error-specific fallback
-      let fallbackResponse;
-      if (error.response?.status === 404) {
-        fallbackResponse = `I think there's an issue with finding the scenario. Let me try again - what were you saying about your business?`;
-      } else if (error.message.includes('timeout')) {
-        fallbackResponse = `Sorry, I need a moment to process that. Could you tell me again what you're offering?`;
-      } else {
-        fallbackResponse = `I apologize, I had trouble understanding. What company are you calling from?`;
-      }
+      // Natural customer response for errors
+      const fallbackResponse = `Sorry, I didn't quite catch that. What company did you say you were calling from?`;
       
-      console.log('🔄 Using fallback response:', fallbackResponse);
+      console.log('🔄 Using customer fallback response:', fallbackResponse);
       addToConversation('ai', fallbackResponse);
-      setTranscript(prev => prev + `[Customer]: ${fallbackResponse} `);
+      setTranscript(prev => prev + `[${scenarioData?.ai_character_name || 'Customer'}]: ${fallbackResponse} `);
       
       setTimeout(() => {
         speakText(fallbackResponse);
       }, 300);
       
     } finally {
-      console.log('🎯 Speech processing completed, resetting flags');
+      console.log('🎯 User-initiated speech processing completed');
       isProcessingUserSpeech.current = false;
-      console.log('🎯 ===== SPEECH PROCESSING END =====');
+      console.log('🎯 ===== USER SPEECH PROCESSING END =====');
     }
   };
 
@@ -796,12 +764,14 @@ const VideoSession = ({ user }) => {
           <div className="conversation-box">
             {conversation.length === 0 ? (
               <div className="empty-conversation">
-                <p>🎯 Your conversation with {scenarioData?.ai_character_name || 'the AI character'} will appear here in real-time...</p>
-                <p>💡 <strong>Tips for Natural Conversation:</strong></p>
+                <p>🎯 <strong>You start the conversation!</strong></p>
+                <p>Begin by introducing yourself and your company to {scenarioData?.ai_character_name || 'the customer'}.</p>
+                <p>💡 <strong>Sales Call Tips:</strong></p>
                 <ul>
-                  <li>Speak naturally as you would in a real sales call</li>
-                  <li>Wait for the AI to finish speaking before responding</li>
-                  <li>The conversation flows automatically - no buttons needed!</li>
+                  <li>Start with a professional greeting and introduction</li>
+                  <li>State your company name and reason for calling</li>
+                  <li>The AI customer will respond naturally to your approach</li>
+                  <li>Speak clearly - the system is listening for your voice</li>
                 </ul>
               </div>
             ) : (
