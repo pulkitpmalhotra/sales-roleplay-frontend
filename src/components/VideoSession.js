@@ -227,6 +227,10 @@ const VideoSession = ({ user }) => {
       };
 
       recognition.onresult = (event) => {
+        console.log('🎤 ===== SPEECH RECOGNITION RESULT =====');
+        console.log('🎤 Event results length:', event.results.length);
+        console.log('🎤 Event result index:', event.resultIndex);
+        
         // ABSOLUTE BLOCKING - Multiple safety checks
         if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
           console.log('🎤 ABSOLUTE BLOCK - AI is busy, ignoring ALL input');
@@ -267,19 +271,27 @@ const VideoSession = ({ user }) => {
         
         // Get both final and interim results with reasonable confidence requirement
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript;
-          const confidence = event.results[i][0].confidence;
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          const confidence = result[0].confidence || 0.5; // Default confidence if undefined
+          const isFinal = result.isFinal;
           
-          // Reasonable confidence requirement (lowered from 0.7 to 0.4)
-          if (confidence > 0.4 && transcript.trim().length > 2) {
+          console.log(`🎤 Result ${i}: "${transcript}" (confidence: ${confidence}, final: ${isFinal})`);
+          
+          // Very lenient confidence requirement
+          if (confidence > 0.3 && transcript.trim().length > 1) {
             hasValidSpeech = true;
-            if (event.results[i].isFinal) {
+            if (isFinal) {
               finalTranscript += transcript;
             } else {
               interimTranscript += transcript;
             }
           }
         }
+        
+        console.log('🎤 Final transcript:', finalTranscript);
+        console.log('🎤 Interim transcript:', interimTranscript);
+        console.log('🎤 Has valid speech:', hasValidSpeech);
         
         // Only proceed if we have valid speech detected
         if (!hasValidSpeech) {
@@ -288,24 +300,32 @@ const VideoSession = ({ user }) => {
         }
         
         // Show interim results in speech buffer
-        if (interimTranscript.trim() && interimTranscript.trim().length > 2) {
+        if (interimTranscript.trim() && interimTranscript.trim().length > 1) {
           setUserSpeechBuffer(interimTranscript.trim());
-          console.log('🎤 Interim speech detected:', interimTranscript.trim());
+          console.log('🎤 Showing interim speech in buffer:', interimTranscript.trim());
         }
         
-        // Process final results with more reasonable validation
-        if (finalTranscript.trim() && finalTranscript.trim().length > 3) {
-          console.log('🎤 Final speech detected:', finalTranscript);
+        // Process final results with reasonable validation
+        if (finalTranscript.trim() && finalTranscript.trim().length > 2) {
+          console.log('🎤 Processing final speech:', finalTranscript);
           
-          // More reasonable validation - check for any meaningful content
-          const words = finalTranscript.trim().toLowerCase().split(/\s+/);
+          // Very basic validation - just check it's not empty or just filler
+          const cleanText = finalTranscript.trim().toLowerCase();
+          const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+          
+          // Only filter obvious filler words
           const meaningfulWords = words.filter(word => 
-            word.length > 2 && 
-            !['um', 'uh', 'ah', 'er', 'hmm', 'uhm'].includes(word) // Only filter obvious filler words
+            word.length > 1 && 
+            !['um', 'uh', 'ah', 'er', 'hmm', 'uhm'].includes(word)
           );
           
-          // Much more reasonable requirement: at least 1 meaningful word OR length > 5
-          if (meaningfulWords.length >= 1 || finalTranscript.trim().length > 5) {
+          console.log('🎤 Words found:', words);
+          console.log('🎤 Meaningful words:', meaningfulWords);
+          
+          // Very lenient requirement: at least 1 meaningful word
+          if (meaningfulWords.length >= 1) {
+            console.log('🎤 ✅ SPEECH VALIDATION PASSED - Will process:', finalTranscript.trim());
+            
             // Clear speech buffer and process
             setUserSpeechBuffer('');
             
@@ -314,27 +334,31 @@ const VideoSession = ({ user }) => {
               clearTimeout(speechTimeoutRef.current);
             }
             
-            // Shorter delay for better responsiveness
+            // Very short delay for responsiveness
             listeningTimeoutRef.current = setTimeout(() => {
+              console.log('🎤 Timeout triggered - checking if we can process...');
+              
               // Final check that AI is not busy before processing
               if (!isProcessingUserSpeech.current && !isAISpeaking && !waitingForAI && !window.speechSynthesis.speaking) {
                 const currentTimeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-                if (currentTimeSinceAISpeech > 3000) { // Reduced from 5000 to 3000
-                  console.log('🎤 PROCESSING USER SPEECH:', finalTranscript.trim());
+                if (currentTimeSinceAISpeech > 3000) {
+                  console.log('🎤 ✅ ALL CHECKS PASSED - PROCESSING USER SPEECH:', finalTranscript.trim());
                   processUserSpeechRealtime(finalTranscript.trim());
                 } else {
-                  console.log('🎤 BLOCKED - AI spoke too recently');
+                  console.log('🎤 ❌ BLOCKED - AI spoke too recently');
                 }
               } else {
-                console.log('🎤 BLOCKED - AI is busy');
+                console.log('🎤 ❌ BLOCKED - AI is busy');
               }
-            }, 1500); // Reduced from 4000 to 1500ms for better responsiveness
+            }, 1000); // Reduced to 1 second for better responsiveness
           } else {
-            console.log('🎤 Speech rejected - no meaningful content:', finalTranscript);
+            console.log('🎤 ❌ Speech rejected - no meaningful content:', finalTranscript);
             setTimeout(() => {
               setUserSpeechBuffer('');
             }, 1000);
           }
+        } else {
+          console.log('🎤 Final transcript too short or empty');
         }
       };
 
@@ -1014,13 +1038,13 @@ const VideoSession = ({ user }) => {
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
             {isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
-              <span>🎤 Listening...</span>
+              <span>🎤 Listening for your voice...</span>
             )}
             {userSpeechBuffer && !waitingForAI && (
               <span>📝 You're saying: "{userSpeechBuffer.substring(0, 40)}..."</span>
             )}
             {!isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
-              <span>⏸️ Ready</span>
+              <span>⏸️ Ready (Recognition: {recognitionActive ? 'Active' : 'Inactive'})</span>
             )}
           </div>
           
@@ -1127,6 +1151,7 @@ const VideoSession = ({ user }) => {
             <div className="debug-details">
               <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
               <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>Recognition Active:</strong> {recognitionActive ? '✅ Yes' : '❌ No'}</p>
               <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
               <p><strong>AI Status:</strong> {
                 isAISpeaking ? '🗣️ Speaking' : 
@@ -1134,7 +1159,9 @@ const VideoSession = ({ user }) => {
                 isListening ? '👂 Listening' :
                 '⏸️ Ready'
               }</p>
+              <p><strong>Speech Buffer:</strong> {userSpeechBuffer || 'Empty'}</p>
               <p><strong>Exchanges:</strong> {conversation.length}</p>
+              <p><strong>Last AI Speech:</strong> {lastAISpeechTime.current > 0 ? `${Math.round((Date.now() - lastAISpeechTime.current) / 1000)}s ago` : 'Never'}</p>
             </div>
           </details>
         </div>
