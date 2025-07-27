@@ -261,9 +261,10 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Simplified speech processing with better error handling
+  // Simplified speech processing with conversation history
   const processUserSpeechRealtime = async (speechText) => {
     console.log('🎯 PROCESSING USER SPEECH:', speechText);
+    console.log('🎯 Current conversation length:', conversation.length);
     
     // Validation
     if (!speechText || speechText.length < 2) {
@@ -283,20 +284,38 @@ const VideoSession = ({ user }) => {
 
     try {
       console.log('🎯 Adding user message to conversation');
-      addToConversation('user', speechText);
+      
+      // Add user message to conversation first
+      const newUserMessage = {
+        speaker: 'user',
+        message: speechText,
+        timestamp: Date.now()
+      };
+      
+      // Update conversation state
+      setConversation(prev => [...prev, newUserMessage]);
       setTranscript(prev => prev + `[You]: ${speechText} `);
       
-      console.log('🔄 Sending to backend API...');
+      // Create updated conversation history for API call
+      const updatedConversationHistory = [...conversation, newUserMessage];
+      
+      console.log('🔄 Sending to backend API with conversation history...');
       const token = await user.getIdToken();
       
       const requestData = {
         sessionId: sessionId,
         userMessage: speechText,
         scenarioId: scenarioId,
-        conversationHistory: conversation
+        conversationHistory: updatedConversationHistory // Send the updated history
       };
       
-      console.log('🔄 Request data:', requestData);
+      console.log('🔄 Request data:', {
+        ...requestData,
+        conversationHistory: requestData.conversationHistory.map(msg => ({
+          speaker: msg.speaker,
+          message: msg.message.substring(0, 30) + '...'
+        }))
+      });
       
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
@@ -306,7 +325,7 @@ const VideoSession = ({ user }) => {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          timeout: 10000
+          timeout: 15000
         }
       );
       
@@ -334,10 +353,16 @@ const VideoSession = ({ user }) => {
       
     } catch (error) {
       console.error('❌ Speech processing error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
       setWaitingForAI(false);
       
       // Simple fallback
-      const fallbackResponse = "Sorry, I didn't catch that clearly. Could you repeat what you said?";
+      const fallbackResponse = "Could you say that again? I want to make sure I understand.";
       addToConversation('ai', fallbackResponse);
       setTranscript(prev => prev + `[Customer]: ${fallbackResponse} `);
       
