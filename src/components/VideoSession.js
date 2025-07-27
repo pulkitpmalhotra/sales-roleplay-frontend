@@ -788,7 +788,7 @@ const VideoSession = ({ user }) => {
         </div>
       </div>
     );
-  }</div>
+  }
           </div>
 
           {feedback?.aiFeedback && (
