@@ -731,7 +731,6 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="video-container" ref={callFrameRef}>
-        {/* AI Avatar Overlay */}
         <div className="ai-avatar-overlay">
           <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
             <div className="avatar-image">
@@ -756,7 +755,6 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="session-info">
-        {/* Real-time Speech Feedback */}
         {userSpeechBuffer && (
           <div className="speech-buffer-section">
             <h4>🎤 Speaking:</h4>
@@ -766,7 +764,6 @@ const VideoSession = ({ user }) => {
           </div>
         )}
 
-        {/* Live Conversation Display */}
         <div className="conversation-section">
           <h3>Conversation ({conversation.length} exchanges)</h3>
           <div className="conversation-box">
@@ -811,7 +808,6 @@ const VideoSession = ({ user }) => {
           </div>
         </div>
 
-        {/* Debug Info */}
         <div className="debug-info">
           <details>
             <summary>🔍 Session Status & Debug</summary>
@@ -822,29 +818,4 @@ const VideoSession = ({ user }) => {
               <p><strong>Recognition Active:</strong> {recognitionActive ? '✅ Yes' : '❌ No'}</p>
               <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
               <p><strong>AI Status:</strong> {
-                isAISpeaking ? '🗣️ Speaking' : 
-                waitingForAI ? '🤖 Thinking' : 
-                isListening ? '👂 Listening' :
-                '⏸️ Ready'
-              }</p>
-              <p><strong>Speech Buffer:</strong> {userSpeechBuffer || 'Empty'}</p>
-              <p><strong>Exchanges:</strong> {conversation.length}</p>
-              <p><strong>Browser:</strong> {navigator.userAgent.includes('Chrome') ? 'Chrome ✅' : 'Other ⚠️'}</p>
-              
-              <div style={{marginTop: '10px'}}>
-                <strong>Debug Log:</strong>
-                {debugInfo.map((msg, i) => (
-                  <div key={i} style={{fontSize: '11px', color: '#666', marginTop: '2px'}}>
-                    {msg}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </details>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default VideoSession;
+                isAISpeaking ? '🗣️
