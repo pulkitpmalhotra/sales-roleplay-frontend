@@ -683,7 +683,7 @@ const VideoSession = ({ user }) => {
           
           <div className="google-ads-metrics">
             <div className="metric-category">
-              <h3>Performance Metrics</h3>
+              <h3>Core Performance Metrics</h3>
               <div className="metrics-grid">
                 <div className="metric">
                   <h4>Talk Time</h4>
@@ -705,11 +705,90 @@ const VideoSession = ({ user }) => {
                 
                 <div className="metric">
                   <h4>Conversation</h4>
-                  <div className="score-circle">{conversation.length}</div>
+                  <div className="score-circle">{feedback?.conversationLength || conversation.length}</div>
                   <p>Number of exchanges</p>
                 </div>
               </div>
             </div>
+            
+            {/* Sales Skills Breakdown */}
+            <div className="metric-category">
+              <h3>Sales Skills Assessment</h3>
+              <div className="metrics-grid">
+                <div className="metric">
+                  <h4>Discovery</h4>
+                  <div className="score-circle">{feedback?.discovery_score || 'N/A'}/5</div>
+                  <p>Questions and needs analysis</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Product Knowledge</h4>
+                  <div className="score-circle">{feedback?.product_knowledge_score || 'N/A'}/5</div>
+                  <p>Technical concepts used</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Objection Handling</h4>
+                  <div className="score-circle">{feedback?.objection_handling_score || 'N/A'}/5</div>
+                  <p>Addressing concerns</p>
+                </div>
+                
+                <div className="metric">
+                  <h4>Business Value</h4>
+                  <div className="score-circle">{feedback?.business_value_score || 'N/A'}/5</div>
+                  <p>ROI and benefits focus</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Overall Effectiveness */}
+            <div className="metric-category">
+              <h3>Overall Assessment</h3>
+              <div className="overall-score">
+                <div className="large-score">
+                  {feedback?.overall_effectiveness_score || 'N/A'}/5
+                </div>
+                <p>Overall Sales Effectiveness</p>
+              </div>
+            </div>
+            
+            {/* Concepts Used */}
+            {feedback?.google_ads_concepts_used && feedback.google_ads_concepts_used.length > 0 && (
+              <div className="google-ads-concepts">
+                <h4>Concepts Demonstrated</h4>
+                <div className="concepts-list">
+                  {feedback.google_ads_concepts_used.map((concept, index) => (
+                    <span key={index} className="concept-tag">{concept}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {feedback?.aiFeedback && (
+            <div className="ai-feedback-section google-ads">
+              <h3>🎯 Coach Feedback</h3>
+              <div className="ai-feedback-text">
+                {feedback.aiFeedback}
+              </div>
+            </div>
+          )}
+
+          <div className="feedback-actions">
+            <button onClick={goToDashboard} className="primary-button">
+              Back to Dashboard
+            </button>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="secondary-button"
+            >
+              Practice Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }</div>
           </div>
 
           {feedback?.aiFeedback && (
