@@ -49,8 +49,14 @@ const VideoSession = ({ user }) => {
     console.log(`🔍 DEBUG: ${message}`);
   };
 
-  // Simplified speech recognition start
+  // Enhanced speech recognition with better auto-restart
   const startSpeechRecognition = () => {
+    // Don't start if session is ending or showing feedback
+    if (isEndingSession || feedback) {
+      addDebugMessage('🚫 Cannot start recognition - session ending or feedback shown');
+      return;
+    }
+    
     // Don't start if AI is busy or already processing
     if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current || recognitionRef.current) {
       addDebugMessage('🚫 Cannot start recognition - AI busy or already active');
@@ -80,9 +86,9 @@ const VideoSession = ({ user }) => {
       };
 
       recognition.onresult = (event) => {
-        // Skip if AI is currently busy
-        if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
-          addDebugMessage('🚫 Ignoring speech - AI is busy');
+        // Skip if session is ending or AI is busy
+        if (isEndingSession || feedback || isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
+          addDebugMessage('🚫 Ignoring speech - session ending or AI busy');
           return;
         }
 
@@ -105,7 +111,7 @@ const VideoSession = ({ user }) => {
           setUserSpeechBuffer(interimTranscript.trim());
         }
 
-        // Process final results
+        // Process final results immediately
         if (finalTranscript && finalTranscript.trim().length > 2) {
           addDebugMessage(`🎯 Final speech: "${finalTranscript.trim()}"`);
           setUserSpeechBuffer('');
@@ -125,10 +131,13 @@ const VideoSession = ({ user }) => {
         setIsListening(false);
         recognitionRef.current = null;
         
-        // Restart after a delay if not manually stopped
-        if (!isEndingSession && !isAISpeaking && !waitingForAI) {
+        // Auto-restart after error (except for permission denied or if session ending)
+        if (!isEndingSession && !feedback && event.error !== 'not-allowed') {
           restartRecognitionTimeout.current = setTimeout(() => {
-            startSpeechRecognition();
+            if (!isAISpeaking && !waitingForAI && !isEndingSession && !feedback) {
+              addDebugMessage('🔄 Auto-restarting after error...');
+              startSpeechRecognition();
+            }
           }, 2000);
         }
       };
@@ -139,9 +148,10 @@ const VideoSession = ({ user }) => {
         setIsListening(false);
         recognitionRef.current = null;
         
-        // Auto-restart if not manually stopped and AI is not busy
-        if (!isEndingSession && !isAISpeaking && !waitingForAI && !isProcessingUserSpeech.current) {
+        // Auto-restart if conditions are right and session is still active
+        if (!isEndingSession && !feedback && !isAISpeaking && !waitingForAI && !isProcessingUserSpeech.current) {
           restartRecognitionTimeout.current = setTimeout(() => {
+            addDebugMessage('🔄 Auto-restarting recognition...');
             startSpeechRecognition();
           }, 1000);
         }
@@ -490,48 +500,85 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Cleanup function
+  // Enhanced cleanup function - STOPS EVERYTHING
   const cleanup = () => {
-    addDebugMessage('🧹 Starting cleanup...');
+    addDebugMessage('🧹 Starting comprehensive cleanup...');
     
-    // Clear timeouts
+    // Set ending session flag to prevent any restarts
+    setIsEndingSession(true);
+    
+    // Clear ALL timeouts
     if (restartRecognitionTimeout.current) {
       clearTimeout(restartRecognitionTimeout.current);
       restartRecognitionTimeout.current = null;
     }
     
-    // Stop speech recognition
-    stopSpeechRecognition();
+    // FORCE stop speech recognition
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+        addDebugMessage('🛑 Speech recognition forcefully stopped');
+      } catch (e) {
+        addDebugMessage(`Error stopping recognition: ${e.message}`);
+      }
+    }
     
-    // Stop speech synthesis
+    // FORCE stop speech synthesis
     if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.pause();
+        // Clear the voices changed handler
+        window.speechSynthesis.onvoiceschanged = null;
+        addDebugMessage('🔇 Speech synthesis stopped');
+      } catch (e) {
+        addDebugMessage(`Error stopping speech synthesis: ${e.message}`);
+      }
+    }
+    
+    // Clear speech synthesis ref
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current.onstart = null;
+      speechSynthesisRef.current.onend = null;
+      speechSynthesisRef.current.onerror = null;
+      speechSynthesisRef.current = null;
     }
     
     // Destroy call object
     if (callObject) {
       try {
         callObject.destroy();
+        addDebugMessage('📞 Video call destroyed');
       } catch (e) {
         addDebugMessage(`Error destroying call: ${e.message}`);
       }
+      setCallObject(null);
     }
     
-    // Reset states
+    // Reset ALL states to inactive
     setIsAISpeaking(false);
     setWaitingForAI(false);
     setIsListening(false);
+    setIsRecording(false);
+    setRecognitionActive(false);
     setUserSpeechBuffer('');
     isProcessingUserSpeech.current = false;
     
-    addDebugMessage('🧹 Cleanup completed');
+    addDebugMessage('🧹 Comprehensive cleanup completed');
   };
 
-  // End session
+  // End session with immediate cleanup
   const endSession = async () => {
     try {
-      addDebugMessage('🔍 Ending session...');
-      setIsEndingSession(true);
+      addDebugMessage('🔍 Ending session - stopping all AI activity...');
+      
+      // IMMEDIATELY stop everything before doing anything else
       cleanup();
 
       const duration = sessionStartTime ? Date.now() - sessionStartTime : 0;
@@ -553,15 +600,16 @@ const VideoSession = ({ user }) => {
       } else {
         setTimeout(() => navigate('/dashboard'), 2000);
       }
-      
-      setIsEndingSession(false);
 
     } catch (error) {
       addDebugMessage(`❌ Error ending session: ${error.message}`);
-      setIsEndingSession(false);
+      // Even if API fails, show feedback or go to dashboard
       setTimeout(() => {
         navigate('/dashboard');
       }, 2000);
+    } finally {
+      // Ensure isEndingSession is reset
+      setIsEndingSession(false);
     }
   };
 
@@ -573,17 +621,49 @@ const VideoSession = ({ user }) => {
     };
   }, []);
 
-  // Manual controls for testing
-  const forceStartRecognition = () => {
-    stopSpeechRecognition();
-    setTimeout(() => startSpeechRecognition(), 500);
-  };
+  // Auto-restart speech recognition if it gets stuck
+  useEffect(() => {
+    const healthCheckInterval = setInterval(() => {
+      // Only auto-restart if we should be listening but aren't
+      // AND session is not ending
+      if (microphonePermission === 'granted' && 
+          !isListening && 
+          !isAISpeaking && 
+          !waitingForAI && 
+          !isProcessingUserSpeech.current && 
+          !isEndingSession && 
+          !loading &&
+          !feedback) { // Don't restart if showing feedback
+        
+        addDebugMessage('🔄 Auto-restarting stuck recognition...');
+        startSpeechRecognition();
+      }
+    }, 15000); // Check every 15 seconds
 
-  const processBufferedSpeech = () => {
-    if (userSpeechBuffer.trim()) {
-      processUserSpeech(userSpeechBuffer.trim());
-    }
-  };
+    return () => clearInterval(healthCheckInterval);
+  }, [microphonePermission, isListening, isAISpeaking, waitingForAI, isEndingSession, loading, feedback]);
+
+  // Auto-process buffered speech if user stops talking
+  useEffect(() => {
+    if (!userSpeechBuffer || isEndingSession || feedback) return;
+
+    const processTimeout = setTimeout(() => {
+      // If user has been quiet for 3 seconds and buffer has content, process it
+      // BUT only if session is still active
+      if (userSpeechBuffer.trim().length > 2 && 
+          !isAISpeaking && 
+          !waitingForAI && 
+          !isProcessingUserSpeech.current &&
+          !isEndingSession &&
+          !feedback) {
+        
+        addDebugMessage('⏰ Auto-processing buffered speech after pause...');
+        processUserSpeech(userSpeechBuffer.trim());
+      }
+    }, 3000);
+
+    return () => clearTimeout(processTimeout);
+  }, [userSpeechBuffer, isAISpeaking, waitingForAI, isEndingSession, feedback]);
 
   // Show ending session loading
   if (isEndingSession) {
@@ -712,16 +792,8 @@ const VideoSession = ({ user }) => {
           
           <div className="debug-controls">
             <button onClick={testMicrophone} className="process-speech-button">
-              Test Mic
+              Test Microphone
             </button>
-            <button onClick={forceStartRecognition} className="clear-buffer-button">
-              Restart Recognition
-            </button>
-            {userSpeechBuffer && (
-              <button onClick={processBufferedSpeech} className="process-speech-button">
-                Process Speech
-              </button>
-            )}
           </div>
           
           <button onClick={endSession} className="end-session-button">
