@@ -208,41 +208,72 @@ const VideoSession = ({ user }) => {
 
         let finalTranscript = '';
         let interimTranscript = '';
+        let hasValidSpeech = false;
         
         // Get both final and interim results
         for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
+          const transcript = event.results[i][0].transcript;
+          const confidence = event.results[i][0].confidence;
+          
+          // Only consider speech with decent confidence and meaningful content
+          if (confidence > 0.3 && transcript.trim().length > 1) {
+            hasValidSpeech = true;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interimTranscript += transcript;
+            }
           }
         }
         
+        // Only proceed if we have valid speech detected
+        if (!hasValidSpeech) {
+          console.log('🎤 No valid speech detected, maintaining listening state');
+          return;
+        }
+        
         // Show interim results in speech buffer for better UX
-        if (interimTranscript.trim()) {
+        if (interimTranscript.trim() && interimTranscript.trim().length > 2) {
           setUserSpeechBuffer(interimTranscript.trim());
           console.log('🎤 Interim speech:', interimTranscript.trim());
         }
         
-        // Process final results
-        if (finalTranscript.trim() && finalTranscript.length > 2) {
+        // Process final results with stricter validation
+        if (finalTranscript.trim() && finalTranscript.trim().length > 3) {
           console.log('🎤 Final speech detected:', finalTranscript);
           
-          // Clear speech buffer and process
-          setUserSpeechBuffer('');
+          // Additional validation - check for meaningful words
+          const words = finalTranscript.trim().toLowerCase().split(/\s+/);
+          const meaningfulWords = words.filter(word => 
+            word.length > 2 && 
+            !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word)
+          );
           
-          // Clear any existing timeout
-          if (speechTimeoutRef.current) {
-            clearTimeout(speechTimeoutRef.current);
-          }
-          
-          // Add delay before changing state to allow for continued speech
-          listeningTimeoutRef.current = setTimeout(() => {
-            // Only change state if no new speech is detected
-            if (!isProcessingUserSpeech.current && !isAISpeaking) {
-              processUserSpeechRealtime(finalTranscript.trim());
+          // Only process if we have at least one meaningful word or the speech is long enough
+          if (meaningfulWords.length > 0 || finalTranscript.trim().length > 8) {
+            // Clear speech buffer and process
+            setUserSpeechBuffer('');
+            
+            // Clear any existing timeout
+            if (speechTimeoutRef.current) {
+              clearTimeout(speechTimeoutRef.current);
             }
-          }, 2500); // Increased to 2.5 seconds delay to allow for continued speech
+            
+            // Add delay before changing state to allow for continued speech
+            listeningTimeoutRef.current = setTimeout(() => {
+              // Only change state if no new speech is detected
+              if (!isProcessingUserSpeech.current && !isAISpeaking) {
+                console.log('🎤 Processing validated speech:', finalTranscript.trim());
+                processUserSpeechRealtime(finalTranscript.trim());
+              }
+            }, 2500); // 2.5 seconds delay to allow for continued speech
+          } else {
+            console.log('🎤 Speech too short or not meaningful enough, ignoring:', finalTranscript);
+            // Clear buffer and maintain listening
+            setTimeout(() => {
+              setUserSpeechBuffer('');
+            }, 1000);
+          }
         } else {
           // For interim results, maintain listening state with a longer timeout
           listeningTimeoutRef.current = setTimeout(() => {
@@ -250,7 +281,7 @@ const VideoSession = ({ user }) => {
               setIsListening(true); // Keep listening
               setUserSpeechBuffer(''); // Clear buffer after silence
             }
-          }, 5000); // Increased to 5 seconds of silence before clearing buffer
+          }, 5000); // 5 seconds of silence before clearing buffer
         }
       };
 
@@ -314,17 +345,43 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Simplified speech processing with improved state management
+  // Simplified speech processing with improved validation
   const processUserSpeechRealtime = async (speechText) => {
     console.log('🎯 PROCESSING USER SPEECH:', speechText);
     console.log('🎯 Current conversation length:', conversation.length);
     
-    // Validation
-    if (!speechText || speechText.length < 2) {
+    // Enhanced validation to prevent empty/invalid speech from triggering AI
+    if (!speechText || speechText.length < 3) {
       console.log('🎯 Speech too short, ignoring');
-      // Return to listening state
       setIsListening(true);
       return;
+    }
+    
+    // Check for meaningful content
+    const cleanText = speechText.trim().toLowerCase();
+    const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+    
+    // Filter out common filler words and check for substance
+    const meaningfulWords = words.filter(word => 
+      word.length > 2 && 
+      !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'uhm', 'hmm', 'uh', 'um', 'ah', 'er'].includes(word)
+    );
+    
+    // Require at least one meaningful word or longer text
+    if (meaningfulWords.length === 0 && cleanText.length < 8) {
+      console.log('🎯 No meaningful content detected, ignoring:', speechText);
+      setIsListening(true);
+      return;
+    }
+    
+    // Check for repeated patterns that might be speech recognition errors
+    if (words.length > 1) {
+      const uniqueWords = [...new Set(words)];
+      if (uniqueWords.length === 1 && words.length > 2) {
+        console.log('🎯 Detected repeated word pattern, likely recognition error:', speechText);
+        setIsListening(true);
+        return;
+      }
     }
     
     if (isProcessingUserSpeech.current) {
@@ -332,7 +389,7 @@ const VideoSession = ({ user }) => {
       return;
     }
 
-    // Clear listening timeout since we're processing speech
+    // Clear listening timeout since we're processing valid speech
     if (listeningTimeoutRef.current) {
       clearTimeout(listeningTimeoutRef.current);
       listeningTimeoutRef.current = null;
