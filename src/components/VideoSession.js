@@ -781,3 +781,181 @@ const VideoSession = ({ user }) => {
             <button 
               onClick={() => window.location.reload()} 
               className="secondary-button"
+            >
+              Practice Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }</div>
+          </div>
+
+          {feedback?.aiFeedback && (
+            <div className="ai-feedback-section google-ads">
+              <h3>🎯 Coach Feedback</h3>
+              <div className="ai-feedback-text">
+                {feedback.aiFeedback}
+              </div>
+            </div>
+          )}
+
+          <div className="feedback-actions">
+            <button onClick={goToDashboard} className="primary-button">
+              Back to Dashboard
+            </button>
+            <button 
+              onClick={() => window.location.reload()} 
+              className="secondary-button"
+            >
+              Practice Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Active session state with AI avatar
+  return (
+    <div className="video-session">
+      <div className="session-header google-ads">
+        <div className="session-title">
+          <h2>{scenarioData?.title || 'Practice Session'}</h2>
+          <div className="session-context">
+            <span className="skill-area">{scenarioData?.sales_skill_area || 'Sales Skills'}</span>
+            <span className="buyer-persona">with {scenarioData?.buyer_persona || 'Customer'}</span>
+            <span className="google-ads-focus">{scenarioData?.google_ads_focus || 'General'}</span>
+          </div>
+        </div>
+        
+        <div className="session-controls">
+          <div className="ai-status">
+            {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
+            {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
+            {isRecording && !isAISpeaking && !waitingForAI && (
+              <span>🎤 Listening...</span>
+            )}
+            {userSpeechBuffer && !waitingForAI && (
+              <span>📝 Processing: "{userSpeechBuffer.substring(0, 30)}..."</span>
+            )}
+          </div>
+          
+          <button onClick={endSession} className="end-session-button">
+            End Session
+          </button>
+        </div>
+      </div>
+
+      <div className="video-container" ref={callFrameRef}>
+        {/* AI Avatar Overlay */}
+        <div className="ai-avatar-overlay">
+          <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
+            <div className="avatar-image">
+              <div className="avatar-placeholder">
+                {scenarioData?.ai_character_name ? scenarioData.ai_character_name.charAt(0) : 'AI'}
+              </div>
+            </div>
+            <div className="avatar-status">
+              <div className="character-name">{scenarioData?.ai_character_name || 'AI Character'}</div>
+              <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
+              {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
+              {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
+              {!isAISpeaking && !waitingForAI && isRecording && (
+                <div className="listening-indicator">Listening...</div>
+              )}
+              {!isRecording && !isAISpeaking && !waitingForAI && (
+                <div className="ready-indicator">Ready to talk</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="session-info">
+        {/* Real-time Speech Feedback */}
+        {userSpeechBuffer && (
+          <div className="speech-buffer-section">
+            <h4>🎤 Speaking:</h4>
+            <div className="speech-buffer-box">
+              {userSpeechBuffer}
+            </div>
+          </div>
+        )}
+
+        {/* Live Conversation Display */}
+        <div className="conversation-section">
+          <h3>Conversation ({conversation.length} exchanges)</h3>
+          <div className="conversation-box">
+            {conversation.length === 0 ? (
+              <div className="empty-conversation">
+                <p>Your conversation will appear here...</p>
+              </div>
+            ) : (
+              <div className="messages-container">
+                {conversation.map((msg, index) => (
+                  <div key={index} className={`message ${msg.speaker}`}>
+                    <div className="message-header">
+                      <strong>
+                        {msg.speaker === 'user' ? '👤 You' : `🤖 ${scenarioData?.ai_character_name || 'AI'}`}
+                      </strong>
+                      <span className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="message-content">
+                      {msg.message}
+                    </div>
+                  </div>
+                ))}
+                {waitingForAI && (
+                  <div className="message ai typing">
+                    <div className="message-header">
+                      <strong>🤖 {scenarioData?.ai_character_name || 'AI'}</strong>
+                    </div>
+                    <div className="message-content">
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Full Transcript Display */}
+        {transcript && (
+          <div className="transcript-section">
+            <h4>📝 Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
+            <div className="transcript-box">
+              {transcript || 'Transcript will appear here...'}
+            </div>
+          </div>
+        )}
+
+        {/* Session Status */}
+        <div className="debug-info">
+          <details>
+            <summary>🔍 Session Status</summary>
+            <div className="debug-details">
+              <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
+              <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>AI Status:</strong> {
+                isAISpeaking ? '🗣️ Speaking' : 
+                waitingForAI ? '🤖 Thinking' : 
+                '👂 Listening'
+              }</p>
+              <p><strong>Exchanges:</strong> {conversation.length}</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VideoSession;
