@@ -1,4 +1,20 @@
-import React, { useState, useEffect, useRef } from 'react';
+// Completely stop speech recognition
+  const stopSpeechRecognition = () => {
+    addDebugMessage('🛑 Stopping speech recognition');
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+        setIsRecording(false);
+        setRecognitionActive(false);
+        setIsListening(false);
+        addDebugMessage('🛑 Speech recognition stopped');
+      } catch (e) {
+        addDebugMessage(`🛑 Error stopping recognition: ${e.message}`);
+      }
+    }
+  };import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DailyIframe from '@daily-co/daily-js';
 import axios from 'axios';
@@ -26,6 +42,8 @@ const VideoSession = ({ user }) => {
   const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [recognitionActive, setRecognitionActive] = useState(false);
+  const [microphonePermission, setMicrophonePermission] = useState('unknown');
+  const [debugInfo, setDebugInfo] = useState([]);
   
   // Refs
   const callFrameRef = useRef(null);
@@ -180,21 +198,112 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Completely stop speech recognition
-  const stopSpeechRecognition = () => {
-    console.log('🛑 STOPPING speech recognition completely');
+  // Add debug message helper
+  const addDebugMessage = (message) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setDebugInfo(prev => [...prev.slice(-4), `${timestamp}: ${message}`]);
+    console.log(`🔍 DEBUG: ${message}`);
+  };
+
+  // Test microphone access
+  const testMicrophone = async () => {
+    try {
+      addDebugMessage('Testing microphone access...');
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      setMicrophonePermission('granted');
+      addDebugMessage('✅ Microphone access granted');
+      
+      // Stop the test stream
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Try to start speech recognition
+      forceStartRecognition();
+    } catch (error) {
+      setMicrophonePermission('denied');
+      addDebugMessage(`❌ Microphone error: ${error.message}`);
+      setError(`Microphone access denied: ${error.message}`);
+    }
+  };
+
+  // Force start recognition for testing
+  const forceStartRecognition = () => {
+    addDebugMessage('Force starting speech recognition...');
+    
+    if (!('webkitSpeechRecognition' in window)) {
+      addDebugMessage('❌ Speech recognition not supported');
+      setError('Speech recognition not supported. Please use Chrome browser.');
+      return;
+    }
+
+    // Stop any existing recognition
     if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
-        setIsRecording(false);
+      stopSpeechRecognition();
+    }
+
+    try {
+      const recognition = new window.webkitSpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-US';
+
+      recognition.onstart = () => {
+        addDebugMessage('✅ Speech recognition started');
+        setIsRecording(true);
+        setRecognitionActive(true);
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event) => {
+        addDebugMessage(`🎤 Speech detected - ${event.results.length} results`);
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const result = event.results[i];
+          const transcript = result[0].transcript;
+          const confidence = result[0].confidence || 0.5;
+          const isFinal = result.isFinal;
+          
+          addDebugMessage(`Result: "${transcript}" (conf: ${confidence.toFixed(2)}, final: ${isFinal})`);
+          
+          if (isFinal && transcript.trim().length > 2) {
+            addDebugMessage(`✅ Processing: "${transcript}"`);
+            processUserSpeechRealtime(transcript.trim());
+          } else if (!isFinal && transcript.trim().length > 1) {
+            setUserSpeechBuffer(transcript.trim());
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        addDebugMessage(`❌ Recognition error: ${event.error}`);
+        if (event.error === 'not-allowed') {
+          setError('Microphone access denied. Please allow microphone access.');
+          setMicrophonePermission('denied');
+        }
+      };
+
+      recognition.onend = () => {
+        addDebugMessage('🔄 Recognition ended, restarting...');
         setRecognitionActive(false);
-        setIsListening(false);
-        console.log('🛑 Speech recognition STOPPED and cleared');
-      } catch (e) {
-        console.log('🛑 Error stopping recognition:', e);
-      }
+        
+        // Auto-restart if not manually stopped
+        if (recognitionRef.current && !isEndingSession && !error && !isAISpeaking) {
+          setTimeout(() => {
+            if (!isAISpeaking && !waitingForAI) {
+              forceStartRecognition();
+            }
+          }, 1000);
+        } else {
+          setIsListening(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+      addDebugMessage('🎤 Recognition instance created and started');
+      
+    } catch (error) {
+      addDebugMessage(`❌ Failed to start recognition: ${error.message}`);
+      setError(`Speech recognition failed: ${error.message}`);
     }
   };
 
