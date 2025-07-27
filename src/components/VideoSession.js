@@ -398,10 +398,13 @@ const VideoSession = ({ user }) => {
     });
   };
 
-  // Enhanced text to speech
+  // Enhanced text to speech with automatic gender detection from name
   const speakText = (text) => {
     if ('speechSynthesis' in window && text.trim()) {
       console.log('🔊 Starting speech synthesis for:', text.substring(0, 50) + '...');
+      
+      const characterName = scenarioData?.ai_character_name || '';
+      console.log('🔊 Character name:', characterName);
       setIsAISpeaking(true);
       
       // Cancel any existing speech
@@ -415,39 +418,176 @@ const VideoSession = ({ user }) => {
       utterance.volume = 1.0;
       utterance.lang = 'en-US';
       
-      // Set voice
-      const voices = window.speechSynthesis.getVoices();
-      const femaleVoice = voices.find(voice => 
-        voice.name.toLowerCase().includes('female') ||
-        voice.name.toLowerCase().includes('zira') ||
-        voice.name.toLowerCase().includes('samantha')
-      );
+      // Auto-detect gender from character name
+      const detectGenderFromName = (name) => {
+        if (!name) return 'female'; // Default fallback
+        
+        const firstName = name.split(' ')[0].toLowerCase();
+        
+        // Common female names
+        const femaleNames = [
+          'sarah', 'jennifer', 'lisa', 'michelle', 'kimberly', 'amy', 'angela', 'helen', 'deborah', 'rachel',
+          'carolyn', 'janet', 'virginia', 'maria', 'heather', 'diane', 'julie', 'joyce', 'victoria', 'kelly',
+          'christina', 'joan', 'evelyn', 'judith', 'andrea', 'hannah', 'jacqueline', 'martha', 'gloria', 'sara',
+          'janice', 'julia', 'kathryn', 'sophia', 'frances', 'alice', 'marie', 'jean', 'janet', 'catherine',
+          'ann', 'anna', 'margaret', 'nancy', 'betty', 'dorothy', 'sandra', 'ashley', 'donna', 'carol',
+          'ruth', 'sharon', 'laura', 'cynthia', 'kathleen', 'helen', 'amy', 'shirley', 'brenda', 'emma',
+          'olivia', 'elizabeth', 'emily', 'madison', 'ava', 'mia', 'abigail', 'ella', 'chloe', 'natalie',
+          'samantha', 'grace', 'sophia', 'isabella', 'zoe', 'lily', 'hannah', 'layla', 'brooklyn', 'alexis'
+        ];
+        
+        // Common male names
+        const maleNames = [
+          'james', 'john', 'robert', 'michael', 'william', 'david', 'richard', 'joseph', 'thomas', 'christopher',
+          'charles', 'daniel', 'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua',
+          'kenneth', 'kevin', 'brian', 'george', 'edward', 'ronald', 'timothy', 'jason', 'jeffrey', 'ryan',
+          'jacob', 'gary', 'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon',
+          'benjamin', 'samuel', 'gregory', 'alexander', 'patrick', 'frank', 'raymond', 'jack', 'dennis', 'jerry',
+          'tyler', 'aaron', 'jose', 'henry', 'adam', 'douglas', 'nathan', 'peter', 'zachary', 'kyle',
+          'noah', 'william', 'mason', 'liam', 'lucas', 'ethan', 'oliver', 'aiden', 'elijah', 'james',
+          'jackson', 'logan', 'alexander', 'caleb', 'ryan', 'luke', 'daniel', 'jack', 'connor', 'owen'
+        ];
+        
+        if (femaleNames.includes(firstName)) {
+          return 'female';
+        } else if (maleNames.includes(firstName)) {
+          return 'male';
+        }
+        
+        // Default to female if name not found
+        return 'female';
+      };
       
-      if (femaleVoice) {
-        utterance.voice = femaleVoice;
+      const detectedGender = detectGenderFromName(characterName);
+      console.log('🔊 Detected gender from name:', detectedGender);
+      
+      // Gender-aware voice selection
+      const setVoiceAndSpeak = () => {
+        const voices = window.speechSynthesis.getVoices();
+        console.log('🔊 Available voices:', voices.length);
+        
+        if (voices.length === 0) {
+          console.log('⚠️ No voices available yet, speaking with default');
+        } else {
+          let selectedVoice = null;
+          
+          if (detectedGender === 'female') {
+            // Priority order for female voices
+            const femaleVoiceNames = [
+              'Microsoft Zira - English (United States)',
+              'Google US English Female',
+              'Samantha',
+              'Karen',
+              'Moira', 
+              'Tessa',
+              'Veena',
+              'Alex (Premium)',
+              'Fiona'
+            ];
+            
+            // Try to find preferred female voices
+            for (const voiceName of femaleVoiceNames) {
+              selectedVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes(voiceName.toLowerCase())
+              );
+              if (selectedVoice) break;
+            }
+            
+            // Fallback: find any female voice by keywords
+            if (!selectedVoice) {
+              selectedVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('female') ||
+                voice.name.toLowerCase().includes('woman') ||
+                voice.name.toLowerCase().includes('zira') ||
+                voice.name.toLowerCase().includes('samantha') ||
+                voice.name.toLowerCase().includes('karen') ||
+                (voice.gender && voice.gender.toLowerCase() === 'female')
+              );
+            }
+          } else if (detectedGender === 'male') {
+            // Priority order for male voices  
+            const maleVoiceNames = [
+              'Microsoft David - English (United States)',
+              'Google US English Male',
+              'Daniel',
+              'Tom',
+              'Fred',
+              'Ralph',
+              'Alex'
+            ];
+            
+            // Try to find preferred male voices
+            for (const voiceName of maleVoiceNames) {
+              selectedVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes(voiceName.toLowerCase())
+              );
+              if (selectedVoice) break;
+            }
+            
+            // Fallback: find any male voice by keywords
+            if (!selectedVoice) {
+              selectedVoice = voices.find(voice => 
+                voice.name.toLowerCase().includes('male') ||
+                voice.name.toLowerCase().includes('man') ||
+                voice.name.toLowerCase().includes('david') ||
+                voice.name.toLowerCase().includes('daniel') ||
+                voice.name.toLowerCase().includes('tom') ||
+                (voice.gender && voice.gender.toLowerCase() === 'male')
+              );
+            }
+          }
+          
+          // Final fallback: use first English voice
+          if (!selectedVoice) {
+            selectedVoice = voices.find(voice => 
+              voice.lang.startsWith('en-')
+            );
+          }
+          
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            console.log('🔊 Selected voice:', selectedVoice.name, 'for detected gender:', detectedGender);
+          } else {
+            console.log('⚠️ Using default voice for detected gender:', detectedGender);
+          }
+        }
+        
+        // Event listeners for debugging
+        utterance.onstart = () => {
+          console.log('🔊 Speech started with voice:', utterance.voice?.name || 'default');
+          setIsAISpeaking(true);
+        };
+        
+        utterance.onend = () => {
+          console.log('🔊 Speech ended');
+          setIsAISpeaking(false);
+          speechSynthesisRef.current = null;
+        };
+        
+        utterance.onerror = (event) => {
+          console.error('❌ Speech error:', event.error);
+          setIsAISpeaking(false);
+          speechSynthesisRef.current = null;
+        };
+        
+        // Speak the text
+        speechSynthesisRef.current = utterance;
+        console.log('🔊 About to speak with voice:', utterance.voice?.name || 'default');
+        window.speechSynthesis.speak(utterance);
+      };
+      
+      // Check if voices are already loaded
+      if (window.speechSynthesis.getVoices().length > 0) {
+        setVoiceAndSpeak();
+      } else {
+        // Wait for voices to load
+        console.log('⏳ Waiting for voices to load...');
+        window.speechSynthesis.onvoiceschanged = () => {
+          console.log('✅ Voices loaded');
+          setVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null; // Remove listener
+        };
       }
-      
-      // Event listeners
-      utterance.onstart = () => {
-        console.log('🔊 Speech started');
-        setIsAISpeaking(true);
-      };
-      
-      utterance.onend = () => {
-        console.log('🔊 Speech ended');
-        setIsAISpeaking(false);
-        speechSynthesisRef.current = null;
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('❌ Speech error:', event.error);
-        setIsAISpeaking(false);
-        speechSynthesisRef.current = null;
-      };
-      
-      // Speak the text
-      speechSynthesisRef.current = utterance;
-      window.speechSynthesis.speak(utterance);
     } else {
       console.error('❌ Speech synthesis not supported or empty text');
       setIsAISpeaking(false);
