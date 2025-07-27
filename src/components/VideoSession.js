@@ -233,9 +233,9 @@ const VideoSession = ({ user }) => {
           return;
         }
 
-        // Check if AI spoke recently (within 5 seconds)
+        // Check if AI spoke recently (within 3 seconds)
         const timeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-        if (timeSinceAISpeech < 5000) {
+        if (timeSinceAISpeech < 3000) {
           console.log('🎤 ABSOLUTE BLOCK - AI spoke recently, ignoring input');
           return;
         }
@@ -265,13 +265,13 @@ const VideoSession = ({ user }) => {
         let interimTranscript = '';
         let hasValidSpeech = false;
         
-        // Get both final and interim results with very high confidence requirement
+        // Get both final and interim results with reasonable confidence requirement
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const transcript = event.results[i][0].transcript;
           const confidence = event.results[i][0].confidence;
           
-          // ULTRA HIGH confidence requirement
-          if (confidence > 0.7 && transcript.trim().length > 3) {
+          // Reasonable confidence requirement (lowered from 0.7 to 0.4)
+          if (confidence > 0.4 && transcript.trim().length > 2) {
             hasValidSpeech = true;
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
@@ -281,31 +281,31 @@ const VideoSession = ({ user }) => {
           }
         }
         
-        // Only proceed if we have very high confidence speech
+        // Only proceed if we have valid speech detected
         if (!hasValidSpeech) {
-          console.log('🎤 No high-confidence speech detected');
+          console.log('🎤 No valid speech detected (confidence too low)');
           return;
         }
         
         // Show interim results in speech buffer
-        if (interimTranscript.trim() && interimTranscript.trim().length > 4) {
+        if (interimTranscript.trim() && interimTranscript.trim().length > 2) {
           setUserSpeechBuffer(interimTranscript.trim());
-          console.log('🎤 High-confidence interim speech:', interimTranscript.trim());
+          console.log('🎤 Interim speech detected:', interimTranscript.trim());
         }
         
-        // Process final results with EXTREME validation
-        if (finalTranscript.trim() && finalTranscript.trim().length > 8) {
+        // Process final results with more reasonable validation
+        if (finalTranscript.trim() && finalTranscript.trim().length > 3) {
           console.log('🎤 Final speech detected:', finalTranscript);
           
-          // EXTREME validation - require meaningful conversation starters
+          // More reasonable validation - check for any meaningful content
           const words = finalTranscript.trim().toLowerCase().split(/\s+/);
           const meaningfulWords = words.filter(word => 
-            word.length > 3 && 
-            !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'well', 'like', 'just', 'that', 'this', 'what', 'when', 'where', 'why', 'with', 'they', 'them', 'then', 'than', 'some', 'more', 'very', 'will', 'each', 'make', 'come', 'time', 'only', 'good', 'also', 'back', 'here', 'over', 'take', 'work', 'find', 'year', 'part', 'give', 'help', 'turn', 'feel', 'seem', 'tell', 'keep', 'look', 'want', 'know', 'call', 'move', 'live', 'need', 'even', 'into', 'from', 'such', 'much', 'down', 'most', 'both', 'long', 'same', 'high', 'last', 'right', 'first', 'after', 'great', 'little', 'still', 'while', 'other', 'never', 'always', 'being', 'since', 'under', 'might', 'could', 'would', 'should', 'about', 'again', 'before', 'around', 'another', 'through', 'without', 'between', 'against', 'perhaps', 'nothing', 'someone', 'something', 'anything', 'everything'].includes(word)
+            word.length > 2 && 
+            !['um', 'uh', 'ah', 'er', 'hmm', 'uhm'].includes(word) // Only filter obvious filler words
           );
           
-          // ULTRA STRICT: Require at least 3 meaningful words AND substantial length
-          if (meaningfulWords.length >= 3 && finalTranscript.trim().length > 15) {
+          // Much more reasonable requirement: at least 1 meaningful word OR length > 5
+          if (meaningfulWords.length >= 1 || finalTranscript.trim().length > 5) {
             // Clear speech buffer and process
             setUserSpeechBuffer('');
             
@@ -314,26 +314,26 @@ const VideoSession = ({ user }) => {
               clearTimeout(speechTimeoutRef.current);
             }
             
-            // LONG delay to ensure user is really done speaking
+            // Shorter delay for better responsiveness
             listeningTimeoutRef.current = setTimeout(() => {
-              // FINAL verification that AI is not busy
+              // Final check that AI is not busy before processing
               if (!isProcessingUserSpeech.current && !isAISpeaking && !waitingForAI && !window.speechSynthesis.speaking) {
                 const currentTimeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-                if (currentTimeSinceAISpeech > 5000) {
-                  console.log('🎤 FINAL VALIDATION PASSED - Processing speech:', finalTranscript.trim());
+                if (currentTimeSinceAISpeech > 3000) { // Reduced from 5000 to 3000
+                  console.log('🎤 PROCESSING USER SPEECH:', finalTranscript.trim());
                   processUserSpeechRealtime(finalTranscript.trim());
                 } else {
-                  console.log('🎤 FINAL BLOCK - AI spoke too recently');
+                  console.log('🎤 BLOCKED - AI spoke too recently');
                 }
               } else {
-                console.log('🎤 FINAL BLOCK - AI became busy during timeout');
+                console.log('🎤 BLOCKED - AI is busy');
               }
-            }, 4000); // 4 seconds delay for ultra-safe processing
+            }, 1500); // Reduced from 4000 to 1500ms for better responsiveness
           } else {
-            console.log('🎤 Speech rejected - insufficient meaningful content:', finalTranscript, 'Meaningful words:', meaningfulWords);
+            console.log('🎤 Speech rejected - no meaningful content:', finalTranscript);
             setTimeout(() => {
               setUserSpeechBuffer('');
-            }, 2000);
+            }, 1000);
           }
         }
       };
@@ -750,16 +750,16 @@ const VideoSession = ({ user }) => {
           speechSynthesisRef.current = null;
           lastAISpeechTime.current = Date.now();
           
-          // Wait 5 seconds of complete silence before allowing recognition restart
-          console.log('🔊 AI finished speaking, waiting 5 seconds of silence...');
+          // Wait 3 seconds of complete silence before allowing recognition restart
+          console.log('🔊 AI finished speaking, waiting 3 seconds of silence...');
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current && !isAISpeaking) {
-              console.log('🔊 5-second silence complete, restarting speech recognition');
+              console.log('🔊 3-second silence complete, restarting speech recognition');
               startSpeechRecognition();
             } else {
               console.log('🔊 AI still busy, not restarting recognition');
             }
-          }, 5000); // 5 seconds of complete silence
+          }, 3000); // Reduced from 5000 to 3000ms
         };
         
         utterance.onerror = (event) => {
@@ -768,12 +768,12 @@ const VideoSession = ({ user }) => {
           speechSynthesisRef.current = null;
           lastAISpeechTime.current = Date.now();
           
-          // Same 5-second delay on error
+          // Same 3-second delay on error
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current && !isAISpeaking) {
               startSpeechRecognition();
             }
-          }, 5000);
+          }, 3000);
         };
         
         // Speak the text
