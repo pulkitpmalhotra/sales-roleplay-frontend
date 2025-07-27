@@ -24,7 +24,6 @@ const VideoSession = ({ user }) => {
   const [scenarioData, setScenarioData] = useState(null);
   const [userSpeechBuffer, setUserSpeechBuffer] = useState('');
   const [lastUserSpeechTime, setLastUserSpeechTime] = useState(0);
-  // Remove unused variables since AI no longer auto-introduces
   
   // Refs
   const callFrameRef = useRef(null);
@@ -166,40 +165,6 @@ const VideoSession = ({ user }) => {
       console.error('Error initializing session:', error);
       setError('Failed to start session');
       setLoading(false);
-    }
-  };
-
-      // Use the AI chat endpoint to get a proper introduction
-      const response = await axios.post(
-        `${API_BASE_URL}/api/ai/chat`,
-        {
-          sessionId: sessionId,
-          userMessage: "SYSTEM_INTRODUCTION", // Special message to trigger introduction
-          scenarioId: scenarioId,
-          conversationHistory: []
-        },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      
-      const introduction = response.data.response;
-      console.log('🎭 AI Introduction received:', introduction);
-      
-      addToConversation('ai', introduction);
-      setWaitingForAI(false);
-      
-      // Small delay before speaking
-      setTimeout(() => {
-        speakText(introduction);
-      }, 500);
-      
-    } catch (error) {
-      console.error('❌ Error getting AI introduction:', error);
-      setWaitingForAI(false);
-      
-      // Fallback introduction
-      const fallbackIntro = `Hello! I'm ${scenarioData?.ai_character_name || 'the customer'}. What can I help you with today?`;
-      addToConversation('ai', fallbackIntro);
-      speakText(fallbackIntro);
     }
   };
 
@@ -464,7 +429,7 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // End session (existing code remains the same)
+  // End session
   const endSession = async () => {
     try {
       console.log('🔍 ===== FRONTEND END SESSION DEBUG =====');
@@ -543,7 +508,7 @@ const VideoSession = ({ user }) => {
     );
   }
 
-  // Feedback state (existing code remains the same)
+  // Feedback state
   if (feedback) {
     return (
       <div className="feedback-container google-ads">
@@ -661,7 +626,7 @@ const VideoSession = ({ user }) => {
       </div>
 
       <div className="video-container" ref={callFrameRef}>
-          {/* AI Avatar Overlay */}
+        {/* AI Avatar Overlay */}
         <div className="ai-avatar-overlay">
           <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
             <div className="avatar-image">
