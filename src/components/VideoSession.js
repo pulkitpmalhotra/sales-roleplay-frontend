@@ -513,12 +513,12 @@ const VideoSession = ({ user }) => {
     return (
       <div className="feedback-container google-ads">
         <div className="feedback-card">
-          <h2>🎯 Google Ads Sales Performance</h2>
+          <h2>🎯 Session Performance</h2>
           <p>Your {feedback?.skillArea || scenarioData?.sales_skill_area || 'sales'} practice session results:</p>
           
           <div className="google-ads-metrics">
             <div className="metric-category">
-              <h3>Core Google Ads Skills</h3>
+              <h3>Performance Metrics</h3>
               <div className="metrics-grid">
                 <div className="metric">
                   <h4>Talk Time</h4>
@@ -549,7 +549,7 @@ const VideoSession = ({ user }) => {
 
           {feedback?.aiFeedback && (
             <div className="ai-feedback-section google-ads">
-              <h3>🎯 Google Ads Coach Feedback</h3>
+              <h3>🎯 Coach Feedback</h3>
               <div className="ai-feedback-text">
                 {feedback.aiFeedback}
               </div>
@@ -577,11 +577,11 @@ const VideoSession = ({ user }) => {
     <div className="video-session">
       <div className="session-header google-ads">
         <div className="session-title">
-          <h2>{scenarioData?.title || 'Google Ads Practice Session'}</h2>
+          <h2>{scenarioData?.title || 'Practice Session'}</h2>
           <div className="session-context">
             <span className="skill-area">{scenarioData?.sales_skill_area || 'Sales Skills'}</span>
-            <span className="buyer-persona">vs. {scenarioData?.buyer_persona || 'Customer'}</span>
-            <span className="google-ads-focus">Focus: {scenarioData?.google_ads_focus || 'General'}</span>
+            <span className="buyer-persona">with {scenarioData?.buyer_persona || 'Customer'}</span>
+            <span className="google-ads-focus">{scenarioData?.google_ads_focus || 'General'}</span>
           </div>
         </div>
         
@@ -590,37 +590,15 @@ const VideoSession = ({ user }) => {
             {waitingForAI && <span>🤖 {scenarioData?.ai_character_name || 'AI'} is thinking...</span>}
             {isAISpeaking && <span>🗣️ {scenarioData?.ai_character_name || 'AI'} is speaking...</span>}
             {isRecording && !isAISpeaking && !waitingForAI && (
-              <span>🎤 Listening for your response... (speak now)</span>
+              <span>🎤 Listening...</span>
             )}
             {userSpeechBuffer && !waitingForAI && (
               <span>📝 Processing: "{userSpeechBuffer.substring(0, 30)}..."</span>
             )}
           </div>
           
-          {/* Test button for debugging */}
-          <button 
-            onClick={() => {
-              const testMessage = "Hello, this is John from Google Ads. I'm calling to help improve your online advertising.";
-              console.log('🧪 Testing with message:', testMessage);
-              processUserSpeechRealtime(testMessage);
-            }}
-            className="test-button"
-            style={{
-              background: '#4CAF50',
-              color: 'white',
-              border: 'none',
-              padding: '8px 16px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              marginRight: '10px'
-            }}
-          >
-            Test Message
-          </button>
-          
           <button onClick={endSession} className="end-session-button">
-            End Google Ads Practice
+            End Session
           </button>
         </div>
       </div>
@@ -654,7 +632,7 @@ const VideoSession = ({ user }) => {
         {/* Real-time Speech Feedback */}
         {userSpeechBuffer && (
           <div className="speech-buffer-section">
-            <h4>🎤 Currently Speaking:</h4>
+            <h4>🎤 Speaking:</h4>
             <div className="speech-buffer-box">
               {userSpeechBuffer}
             </div>
@@ -663,19 +641,11 @@ const VideoSession = ({ user }) => {
 
         {/* Live Conversation Display */}
         <div className="conversation-section">
-          <h3>Live Conversation ({conversation.length} exchanges)</h3>
+          <h3>Conversation ({conversation.length} exchanges)</h3>
           <div className="conversation-box">
             {conversation.length === 0 ? (
               <div className="empty-conversation">
-                <p>🎯 <strong>You start the conversation!</strong></p>
-                <p>Begin by introducing yourself and your company to {scenarioData?.ai_character_name || 'the customer'}.</p>
-                <p>💡 <strong>Sales Call Tips:</strong></p>
-                <ul>
-                  <li>Start with a professional greeting and introduction</li>
-                  <li>State your company name and reason for calling</li>
-                  <li>The AI customer will respond naturally to your approach</li>
-                  <li>Speak clearly - the system is listening for your voice</li>
-                </ul>
+                <p>Your conversation will appear here...</p>
               </div>
             ) : (
               <div className="messages-container">
@@ -716,14 +686,14 @@ const VideoSession = ({ user }) => {
         {/* Full Transcript Display */}
         {transcript && (
           <div className="transcript-section">
-            <h4>📝 Session Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
+            <h4>📝 Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
             <div className="transcript-box">
-              {transcript || 'Your conversation transcript will appear here...'}
+              {transcript || 'Transcript will appear here...'}
             </div>
           </div>
         )}
 
-        {/* Minimal Debug Information */}
+        {/* Session Status */}
         <div className="debug-info">
           <details>
             <summary>🔍 Session Status</summary>
