@@ -191,9 +191,15 @@ const VideoSession = ({ user }) => {
       };
 
       recognition.onresult = (event) => {
-        // Skip if AI is busy
+        // CRITICAL: Skip ALL processing if AI is speaking or thinking
         if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
-          console.log('🎤 Skipping - AI is busy');
+          console.log('🎤 BLOCKED - AI is busy, ignoring all speech input');
+          return;
+        }
+
+        // Double-check speech synthesis state to prevent feedback loop
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+          console.log('🎤 BLOCKED - Speech synthesis active, ignoring input');
           return;
         }
 
@@ -215,8 +221,8 @@ const VideoSession = ({ user }) => {
           const transcript = event.results[i][0].transcript;
           const confidence = event.results[i][0].confidence;
           
-          // Only consider speech with decent confidence and meaningful content
-          if (confidence > 0.3 && transcript.trim().length > 1) {
+          // Only consider speech with high confidence and meaningful content
+          if (confidence > 0.5 && transcript.trim().length > 2) {
             hasValidSpeech = true;
             if (event.results[i].isFinal) {
               finalTranscript += transcript;
@@ -228,18 +234,18 @@ const VideoSession = ({ user }) => {
         
         // Only proceed if we have valid speech detected
         if (!hasValidSpeech) {
-          console.log('🎤 No valid speech detected, maintaining listening state');
+          console.log('🎤 No valid speech detected (low confidence or too short)');
           return;
         }
         
         // Show interim results in speech buffer for better UX
-        if (interimTranscript.trim() && interimTranscript.trim().length > 2) {
+        if (interimTranscript.trim() && interimTranscript.trim().length > 3) {
           setUserSpeechBuffer(interimTranscript.trim());
           console.log('🎤 Interim speech:', interimTranscript.trim());
         }
         
-        // Process final results with stricter validation
-        if (finalTranscript.trim() && finalTranscript.trim().length > 3) {
+        // Process final results with ultra-strict validation
+        if (finalTranscript.trim() && finalTranscript.trim().length > 5) {
           console.log('🎤 Final speech detected:', finalTranscript);
           
           // Additional validation - check for meaningful words
@@ -249,8 +255,8 @@ const VideoSession = ({ user }) => {
             !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use'].includes(word)
           );
           
-          // Only process if we have at least one meaningful word or the speech is long enough
-          if (meaningfulWords.length > 0 || finalTranscript.trim().length > 8) {
+          // ULTRA STRICT: Require at least 2 meaningful words OR very long text
+          if (meaningfulWords.length >= 2 || finalTranscript.trim().length > 15) {
             // Clear speech buffer and process
             setUserSpeechBuffer('');
             
@@ -261,14 +267,16 @@ const VideoSession = ({ user }) => {
             
             // Add delay before changing state to allow for continued speech
             listeningTimeoutRef.current = setTimeout(() => {
-              // Only change state if no new speech is detected
-              if (!isProcessingUserSpeech.current && !isAISpeaking) {
+              // Triple-check that AI is not busy before processing
+              if (!isProcessingUserSpeech.current && !isAISpeaking && !waitingForAI && !window.speechSynthesis.speaking) {
                 console.log('🎤 Processing validated speech:', finalTranscript.trim());
                 processUserSpeechRealtime(finalTranscript.trim());
+              } else {
+                console.log('🎤 BLOCKED during timeout - AI became busy');
               }
-            }, 2500); // 2.5 seconds delay to allow for continued speech
+            }, 3000); // Increased to 3 seconds for extra safety
           } else {
-            console.log('🎤 Speech too short or not meaningful enough, ignoring:', finalTranscript);
+            console.log('🎤 Speech rejected - insufficient meaningful words:', finalTranscript, 'Meaningful words:', meaningfulWords);
             // Clear buffer and maintain listening
             setTimeout(() => {
               setUserSpeechBuffer('');
@@ -281,7 +289,7 @@ const VideoSession = ({ user }) => {
               setIsListening(true); // Keep listening
               setUserSpeechBuffer(''); // Clear buffer after silence
             }
-          }, 5000); // 5 seconds of silence before clearing buffer
+          }, 6000); // Increased to 6 seconds
         }
       };
 
@@ -345,31 +353,45 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Simplified speech processing with improved validation
+  // Enhanced speech processing with ultra-strict validation
   const processUserSpeechRealtime = async (speechText) => {
     console.log('🎯 PROCESSING USER SPEECH:', speechText);
     console.log('🎯 Current conversation length:', conversation.length);
     
-    // Enhanced validation to prevent empty/invalid speech from triggering AI
-    if (!speechText || speechText.length < 3) {
+    // CRITICAL: Double-check AI is not busy before processing
+    if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
+      console.log('🎯 BLOCKED - AI is busy, aborting speech processing');
+      setIsListening(true);
+      return;
+    }
+    
+    // Check speech synthesis state
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      console.log('🎯 BLOCKED - Speech synthesis active, aborting processing');
+      setIsListening(true);
+      return;
+    }
+    
+    // Ultra-strict validation to prevent empty/invalid speech from triggering AI
+    if (!speechText || speechText.length < 5) {
       console.log('🎯 Speech too short, ignoring');
       setIsListening(true);
       return;
     }
     
-    // Check for meaningful content
+    // Check for meaningful content with stricter rules
     const cleanText = speechText.trim().toLowerCase();
     const words = cleanText.split(/\s+/).filter(word => word.length > 0);
     
     // Filter out common filler words and check for substance
     const meaningfulWords = words.filter(word => 
       word.length > 2 && 
-      !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'uhm', 'hmm', 'uh', 'um', 'ah', 'er'].includes(word)
+      !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'uhm', 'hmm', 'uh', 'um', 'ah', 'er', 'well', 'like', 'just', 'that', 'this', 'what', 'when', 'where', 'why', 'with'].includes(word)
     );
     
-    // Require at least one meaningful word or longer text
-    if (meaningfulWords.length === 0 && cleanText.length < 8) {
-      console.log('🎯 No meaningful content detected, ignoring:', speechText);
+    // ULTRA STRICT: Require at least 2 meaningful words AND longer text
+    if (meaningfulWords.length < 2 || cleanText.length < 10) {
+      console.log('🎯 Insufficient meaningful content, ignoring:', speechText, 'Meaningful words:', meaningfulWords);
       setIsListening(true);
       return;
     }
@@ -377,13 +399,14 @@ const VideoSession = ({ user }) => {
     // Check for repeated patterns that might be speech recognition errors
     if (words.length > 1) {
       const uniqueWords = [...new Set(words)];
-      if (uniqueWords.length === 1 && words.length > 2) {
+      if (uniqueWords.length <= 2 && words.length > 3) {
         console.log('🎯 Detected repeated word pattern, likely recognition error:', speechText);
         setIsListening(true);
         return;
       }
     }
     
+    // Final check for AI business before committing to processing
     if (isProcessingUserSpeech.current) {
       console.log('🎯 Already processing speech, ignoring');
       return;
@@ -463,7 +486,7 @@ const VideoSession = ({ user }) => {
         // Text-to-speech
         setTimeout(() => {
           speakText(aiResponse);
-        }, 300);
+        }, 500); // Slightly longer delay
         
       } else {
         console.error('❌ Empty or invalid AI response');
@@ -487,17 +510,10 @@ const VideoSession = ({ user }) => {
       
       setTimeout(() => {
         speakText(fallbackResponse);
-      }, 300);
+      }, 500);
       
     } finally {
       isProcessingUserSpeech.current = false;
-      // Return to listening after processing is complete and AI finishes speaking
-      // Increased delay to allow for more natural conversation flow
-      setTimeout(() => {
-        if (!isAISpeaking && !waitingForAI) {
-          setIsListening(true);
-        }
-      }, 1000); // Increased to 1 second delay
       console.log('🎯 Speech processing completed');
     }
   };
@@ -678,37 +694,67 @@ const VideoSession = ({ user }) => {
           }
         }
         
-        // Event listeners for debugging
+        // Event listeners with speech recognition control
         utterance.onstart = () => {
           console.log('🔊 Speech started with voice:', utterance.voice?.name || 'default');
           setIsAISpeaking(true);
           setIsListening(false); // Stop listening while AI is speaking
+          
+          // CRITICAL: Pause speech recognition while AI is speaking
+          if (recognitionRef.current) {
+            try {
+              console.log('🔊 Pausing speech recognition during AI speech');
+              recognitionRef.current.abort(); // Stop recognition completely
+            } catch (e) {
+              console.log('🔊 Error pausing recognition:', e);
+            }
+          }
         };
         
         utterance.onend = () => {
           console.log('🔊 Speech ended');
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
-          // Return to listening after AI finishes speaking with 2-second silence
-          console.log('🔊 AI finished speaking, waiting 2 seconds before listening...');
+          
+          // Return to listening after AI finishes speaking with 3-second silence
+          console.log('🔊 AI finished speaking, waiting 3 seconds before restarting recognition...');
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current) {
-              console.log('🔊 2-second silence complete, returning to listening state');
+              console.log('🔊 3-second silence complete, restarting speech recognition');
+              
+              // Restart speech recognition after AI finishes
+              if (!recognitionRef.current && !isEndingSession) {
+                try {
+                  startSpeechRecognition();
+                } catch (e) {
+                  console.error('Failed to restart recognition:', e);
+                }
+              }
+              
               setIsListening(true);
             }
-          }, 2000); // 2 seconds of silence after AI finishes speaking
+          }, 3000); // 3 seconds of silence after AI finishes speaking
         };
         
         utterance.onerror = (event) => {
           console.error('❌ Speech error:', event.error);
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
-          // Return to listening on error with same 2-second delay
+          
+          // Return to listening on error with same 3-second delay
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current) {
+              // Restart speech recognition after error
+              if (!recognitionRef.current && !isEndingSession) {
+                try {
+                  startSpeechRecognition();
+                } catch (e) {
+                  console.error('Failed to restart recognition after error:', e);
+                }
+              }
               setIsListening(true);
             }
-          }, 2000); // 2 seconds delay even on error for consistency
+          }, 3000);
         };
         
         // Speak the text
