@@ -1,20 +1,4 @@
-// Completely stop speech recognition
-  const stopSpeechRecognition = () => {
-    addDebugMessage('🛑 Stopping speech recognition');
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
-        setIsRecording(false);
-        setRecognitionActive(false);
-        setIsListening(false);
-        addDebugMessage('🛑 Speech recognition stopped');
-      } catch (e) {
-        addDebugMessage(`🛑 Error stopping recognition: ${e.message}`);
-      }
-    }
-  };import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DailyIframe from '@daily-co/daily-js';
 import axios from 'axios';
@@ -61,148 +45,29 @@ const VideoSession = ({ user }) => {
     navigate('/dashboard');
   };
 
-  // Cleanup function with complete speech recognition shutdown
-  const cleanup = () => {
-    console.log('🧹 Starting cleanup...');
-    
-    // Clear any timeouts
-    if (speechTimeoutRef.current) {
-      clearTimeout(speechTimeoutRef.current);
-      speechTimeoutRef.current = null;
-    }
-    
-    if (listeningTimeoutRef.current) {
-      clearTimeout(listeningTimeoutRef.current);
-      listeningTimeoutRef.current = null;
-    }
-    
-    // Stop Daily.co call
-    if (callObject) {
-      console.log('🧹 Destroying Daily.co call');
-      try {
-        callObject.destroy();
-      } catch (e) {
-        console.log('🧹 Error destroying call object:', e);
-      }
-      setCallObject(null);
-    }
-    
-    // Completely stop speech recognition
-    if (recognitionRef.current) {
-      console.log('🧹 Stopping speech recognition');
-      try {
-        recognitionRef.current.stop();
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
-      } catch (e) {
-        console.log('🧹 Error stopping speech recognition:', e);
-      }
-      setIsRecording(false);
-      setRecognitionActive(false);
-    }
-    
-    // Stop speech synthesis completely
-    if (window.speechSynthesis) {
-      console.log('🧹 Stopping speech synthesis');
-      try {
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.pause();
-      } catch (e) {
-        console.log('🧹 Error stopping speech synthesis:', e);
-      }
-    }
-    
-    // Clear speech synthesis ref
-    if (speechSynthesisRef.current) {
-      speechSynthesisRef.current = null;
-    }
-    
-    // Reset all AI states
-    setIsAISpeaking(false);
-    setWaitingForAI(false);
-    setIsListening(false);
-    setUserSpeechBuffer('');
-    isProcessingUserSpeech.current = false;
-    lastAISpeechTime.current = 0;
-    
-    console.log('🧹 Cleanup completed');
-  };
-
-  // Initialize session
-  const initializeSession = async () => {
-    try {
-      const token = await user.getIdToken();
-      const headers = { Authorization: `Bearer ${token}` };
-
-      // Fetch scenario details first
-      const scenarioResponse = await axios.get(
-        `${API_BASE_URL}/api/scenarios`,
-        { headers }
-      );
-      
-      const currentScenario = scenarioResponse.data.find(s => 
-        s.scenario_id === scenarioId || s.id === scenarioId
-      );
-      
-      setScenarioData(currentScenario);
-
-      // Create video room
-      const roomResponse = await axios.post(
-        `${API_BASE_URL}/api/video/create-room`,
-        {},
-        { headers }
-      );
-
-      // Start session
-      const sessionResponse = await axios.post(
-        `${API_BASE_URL}/api/sessions/start`,
-        {
-          scenarioId: scenarioId,
-          roomUrl: roomResponse.data.roomUrl
-        },
-        { headers }
-      );
-
-      setSessionId(sessionResponse.data.sessionId);
-      
-      // Initialize Daily.co call
-      const daily = DailyIframe.createCallObject({
-        url: roomResponse.data.roomUrl
-      });
-
-      setCallObject(daily);
-      
-      // Set up call event listeners
-      daily.on('joined-meeting', () => {
-        setLoading(false);
-        setSessionStartTime(Date.now());
-        startSpeechRecognition();
-        
-        // Session ready - waiting for user to start conversation
-        console.log('✅ Session ready - waiting for user to start conversation');
-      });
-
-      daily.on('error', (error) => {
-        console.error('Daily.co error:', error);
-        setError('Video call failed to start');
-        setLoading(false);
-      });
-
-      // Join the call
-      await daily.join();
-
-    } catch (error) {
-      console.error('Error initializing session:', error);
-      setError('Failed to start session');
-      setLoading(false);
-    }
-  };
-
   // Add debug message helper
   const addDebugMessage = (message) => {
     const timestamp = new Date().toLocaleTimeString();
     setDebugInfo(prev => [...prev.slice(-4), `${timestamp}: ${message}`]);
     console.log(`🔍 DEBUG: ${message}`);
+  };
+
+  // Completely stop speech recognition
+  const stopSpeechRecognition = () => {
+    addDebugMessage('🛑 Stopping speech recognition');
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+        recognitionRef.current.abort();
+        recognitionRef.current = null;
+        setIsRecording(false);
+        setRecognitionActive(false);
+        setIsListening(false);
+        addDebugMessage('🛑 Speech recognition stopped');
+      } catch (e) {
+        addDebugMessage(`🛑 Error stopping recognition: ${e.message}`);
+      }
+    }
   };
 
   // Test microphone access
@@ -256,6 +121,12 @@ const VideoSession = ({ user }) => {
       recognition.onresult = (event) => {
         addDebugMessage(`🎤 Speech detected - ${event.results.length} results`);
         
+        // Skip if AI is busy
+        if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
+          addDebugMessage('🎤 BLOCKED - AI is busy');
+          return;
+        }
+
         for (let i = event.resultIndex; i < event.results.length; i++) {
           const result = event.results[i];
           const transcript = result[0].transcript;
@@ -307,298 +178,167 @@ const VideoSession = ({ user }) => {
     }
   };
 
-  // Speech recognition with complete AI isolation
-  const startSpeechRecognition = () => {
-    // Don't start if AI is busy or recently spoke
-    const timeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-    if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current || timeSinceAISpeech < 5000) {
-      console.log('🎤 BLOCKED - Cannot start recognition, AI is busy or recently spoke');
-      return;
+  // Cleanup function with complete speech recognition shutdown
+  const cleanup = () => {
+    addDebugMessage('🧹 Starting cleanup...');
+    
+    // Clear any timeouts
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
     }
-
-    if ('webkitSpeechRecognition' in window) {
-      // Stop any existing recognition first
-      if (recognitionRef.current) {
-        stopSpeechRecognition();
-      }
-
-      console.log('🎤 Starting NEW speech recognition instance');
-      const recognition = new window.webkitSpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => {
-        console.log('🎤 Speech recognition started successfully');
-        setIsRecording(true);
-        setRecognitionActive(true);
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event) => {
-        console.log('🎤 ===== SPEECH RECOGNITION RESULT =====');
-        console.log('🎤 Event results length:', event.results.length);
-        console.log('🎤 Event result index:', event.resultIndex);
-        
-        // ABSOLUTE BLOCKING - Multiple safety checks
-        if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
-          console.log('🎤 ABSOLUTE BLOCK - AI is busy, ignoring ALL input');
-          return;
-        }
-
-        // Check if AI spoke recently (within 3 seconds)
-        const timeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-        if (timeSinceAISpeech < 3000) {
-          console.log('🎤 ABSOLUTE BLOCK - AI spoke recently, ignoring input');
-          return;
-        }
-
-        // Check speech synthesis state
-        if (window.speechSynthesis && window.speechSynthesis.speaking) {
-          console.log('🎤 ABSOLUTE BLOCK - Speech synthesis active');
-          return;
-        }
-
-        // Only proceed if recognition is supposed to be active
-        if (!recognitionActive) {
-          console.log('🎤 ABSOLUTE BLOCK - Recognition not supposed to be active');
-          return;
-        }
-
-        // Maintain listening state during speech detection
-        setIsListening(true);
-        
-        // Clear any existing listening timeout
-        if (listeningTimeoutRef.current) {
-          clearTimeout(listeningTimeoutRef.current);
-          listeningTimeoutRef.current = null;
-        }
-
-        let finalTranscript = '';
-        let interimTranscript = '';
-        let hasValidSpeech = false;
-        
-        // Get both final and interim results with reasonable confidence requirement
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          const transcript = result[0].transcript;
-          const confidence = result[0].confidence || 0.5; // Default confidence if undefined
-          const isFinal = result.isFinal;
-          
-          console.log(`🎤 Result ${i}: "${transcript}" (confidence: ${confidence}, final: ${isFinal})`);
-          
-          // Very lenient confidence requirement
-          if (confidence > 0.3 && transcript.trim().length > 1) {
-            hasValidSpeech = true;
-            if (isFinal) {
-              finalTranscript += transcript;
-            } else {
-              interimTranscript += transcript;
-            }
-          }
-        }
-        
-        console.log('🎤 Final transcript:', finalTranscript);
-        console.log('🎤 Interim transcript:', interimTranscript);
-        console.log('🎤 Has valid speech:', hasValidSpeech);
-        
-        // Only proceed if we have valid speech detected
-        if (!hasValidSpeech) {
-          console.log('🎤 No valid speech detected (confidence too low)');
-          return;
-        }
-        
-        // Show interim results in speech buffer
-        if (interimTranscript.trim() && interimTranscript.trim().length > 1) {
-          setUserSpeechBuffer(interimTranscript.trim());
-          console.log('🎤 Showing interim speech in buffer:', interimTranscript.trim());
-        }
-        
-        // Process final results with reasonable validation
-        if (finalTranscript.trim() && finalTranscript.trim().length > 2) {
-          console.log('🎤 Processing final speech:', finalTranscript);
-          
-          // Very basic validation - just check it's not empty or just filler
-          const cleanText = finalTranscript.trim().toLowerCase();
-          const words = cleanText.split(/\s+/).filter(word => word.length > 0);
-          
-          // Only filter obvious filler words
-          const meaningfulWords = words.filter(word => 
-            word.length > 1 && 
-            !['um', 'uh', 'ah', 'er', 'hmm', 'uhm'].includes(word)
-          );
-          
-          console.log('🎤 Words found:', words);
-          console.log('🎤 Meaningful words:', meaningfulWords);
-          
-          // Very lenient requirement: at least 1 meaningful word
-          if (meaningfulWords.length >= 1) {
-            console.log('🎤 ✅ SPEECH VALIDATION PASSED - Will process:', finalTranscript.trim());
-            
-            // Clear speech buffer and process
-            setUserSpeechBuffer('');
-            
-            // Clear any existing timeout
-            if (speechTimeoutRef.current) {
-              clearTimeout(speechTimeoutRef.current);
-            }
-            
-            // Very short delay for responsiveness
-            listeningTimeoutRef.current = setTimeout(() => {
-              console.log('🎤 Timeout triggered - checking if we can process...');
-              
-              // Final check that AI is not busy before processing
-              if (!isProcessingUserSpeech.current && !isAISpeaking && !waitingForAI && !window.speechSynthesis.speaking) {
-                const currentTimeSinceAISpeech = Date.now() - lastAISpeechTime.current;
-                if (currentTimeSinceAISpeech > 3000) {
-                  console.log('🎤 ✅ ALL CHECKS PASSED - PROCESSING USER SPEECH:', finalTranscript.trim());
-                  processUserSpeechRealtime(finalTranscript.trim());
-                } else {
-                  console.log('🎤 ❌ BLOCKED - AI spoke too recently');
-                }
-              } else {
-                console.log('🎤 ❌ BLOCKED - AI is busy');
-              }
-            }, 1000); // Reduced to 1 second for better responsiveness
-          } else {
-            console.log('🎤 ❌ Speech rejected - no meaningful content:', finalTranscript);
-            setTimeout(() => {
-              setUserSpeechBuffer('');
-            }, 1000);
-          }
-        } else {
-          console.log('🎤 Final transcript too short or empty');
-        }
-      };
-
-      recognition.onerror = (event) => {
-        console.log('🎤 Speech error:', event.error);
-        
-        // Only show error for serious issues
-        if (event.error === 'not-allowed') {
-          setError('Microphone access denied. Please allow microphone access and refresh.');
-          setIsListening(false);
-          setRecognitionActive(false);
-        } else if (event.error === 'audio-capture') {
-          setError('Microphone not accessible. Please check your microphone.');
-          setIsListening(false);
-          setRecognitionActive(false);
-        }
-      };
-
-      recognition.onend = () => {
-        console.log('🎤 Speech recognition ended');
-        setRecognitionActive(false);
-        
-        // Only restart if not manually stopped and AI is not busy
-        if (recognitionRef.current && !isEndingSession && !error && !isAISpeaking && !waitingForAI) {
-          setTimeout(() => {
-            if (!isAISpeaking && !waitingForAI && !isEndingSession) {
-              try {
-                console.log('🎤 Restarting recognition after end');
-                startSpeechRecognition();
-              } catch (e) {
-                console.error('🎤 Failed to restart recognition');
-                setIsListening(false);
-              }
-            }
-          }, 1000);
-        } else {
-          setIsListening(false);
-        }
-      };
-
+    
+    if (listeningTimeoutRef.current) {
+      clearTimeout(listeningTimeoutRef.current);
+      listeningTimeoutRef.current = null;
+    }
+    
+    // Stop Daily.co call
+    if (callObject) {
       try {
-        recognitionRef.current = recognition;
-        recognition.start();
-        console.log('🎤 Speech recognition initialized and started');
+        callObject.destroy();
       } catch (e) {
-        console.error('❌ Failed to start speech recognition:', e);
-        setError('Speech recognition failed to start. Please refresh and try again.');
-        setIsListening(false);
-        setRecognitionActive(false);
+        addDebugMessage(`Error destroying call object: ${e.message}`);
       }
-    } else {
-      setError('Speech recognition not supported. Please use Chrome browser.');
-      setIsListening(false);
-      setRecognitionActive(false);
+      setCallObject(null);
+    }
+    
+    // Completely stop speech recognition
+    stopSpeechRecognition();
+    
+    // Stop speech synthesis completely
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.pause();
+      } catch (e) {
+        addDebugMessage(`Error stopping speech synthesis: ${e.message}`);
+      }
+    }
+    
+    // Clear speech synthesis ref
+    if (speechSynthesisRef.current) {
+      speechSynthesisRef.current = null;
+    }
+    
+    // Reset all AI states
+    setIsAISpeaking(false);
+    setWaitingForAI(false);
+    setIsListening(false);
+    setUserSpeechBuffer('');
+    isProcessingUserSpeech.current = false;
+    lastAISpeechTime.current = 0;
+    
+    addDebugMessage('🧹 Cleanup completed');
+  };
+
+  // Initialize session with microphone test
+  const initializeSession = async () => {
+    try {
+      addDebugMessage('Initializing session...');
+      
+      const token = await user.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
+
+      // Fetch scenario details first
+      const scenarioResponse = await axios.get(
+        `${API_BASE_URL}/api/scenarios`,
+        { headers }
+      );
+      
+      const currentScenario = scenarioResponse.data.find(s => 
+        s.scenario_id === scenarioId || s.id === scenarioId
+      );
+      
+      setScenarioData(currentScenario);
+      addDebugMessage(`Scenario loaded: ${currentScenario?.title}`);
+
+      // Create video room
+      const roomResponse = await axios.post(
+        `${API_BASE_URL}/api/video/create-room`,
+        {},
+        { headers }
+      );
+
+      // Start session
+      const sessionResponse = await axios.post(
+        `${API_BASE_URL}/api/sessions/start`,
+        {
+          scenarioId: scenarioId,
+          roomUrl: roomResponse.data.roomUrl
+        },
+        { headers }
+      );
+
+      setSessionId(sessionResponse.data.sessionId);
+      addDebugMessage(`Session created: ${sessionResponse.data.sessionId}`);
+      
+      // Initialize Daily.co call
+      const daily = DailyIframe.createCallObject({
+        url: roomResponse.data.roomUrl
+      });
+
+      setCallObject(daily);
+      
+      // Set up call event listeners
+      daily.on('joined-meeting', () => {
+        addDebugMessage('✅ Video call joined successfully');
+        setLoading(false);
+        setSessionStartTime(Date.now());
+        
+        // Test microphone immediately
+        testMicrophone();
+      });
+
+      daily.on('error', (error) => {
+        addDebugMessage(`❌ Video call error: ${error.message}`);
+        setError('Video call failed to start');
+        setLoading(false);
+      });
+
+      // Join the call
+      await daily.join();
+
+    } catch (error) {
+      addDebugMessage(`❌ Session initialization error: ${error.message}`);
+      setError('Failed to start session');
+      setLoading(false);
     }
   };
 
-  // Enhanced speech processing with ultra-strict validation
+  // Simplified speech processing with reasonable validation
   const processUserSpeechRealtime = async (speechText) => {
-    console.log('🎯 PROCESSING USER SPEECH:', speechText);
-    console.log('🎯 Current conversation length:', conversation.length);
+    addDebugMessage(`🎯 Processing speech: "${speechText}"`);
+    
+    // Basic validation - not too strict
+    if (!speechText || speechText.trim().length < 2) {
+      addDebugMessage('🎯 Speech too short, ignoring');
+      setIsListening(true);
+      return;
+    }
     
     // CRITICAL: Double-check AI is not busy before processing
     if (isAISpeaking || waitingForAI || isProcessingUserSpeech.current) {
-      console.log('🎯 BLOCKED - AI is busy, aborting speech processing');
+      addDebugMessage('🎯 BLOCKED - AI is busy, aborting speech processing');
       setIsListening(true);
       return;
     }
     
     // Check speech synthesis state
     if (window.speechSynthesis && window.speechSynthesis.speaking) {
-      console.log('🎯 BLOCKED - Speech synthesis active, aborting processing');
+      addDebugMessage('🎯 BLOCKED - Speech synthesis active, aborting processing');
       setIsListening(true);
-      return;
-    }
-    
-    // Ultra-strict validation to prevent empty/invalid speech from triggering AI
-    if (!speechText || speechText.length < 5) {
-      console.log('🎯 Speech too short, ignoring');
-      setIsListening(true);
-      return;
-    }
-    
-    // Check for meaningful content with stricter rules
-    const cleanText = speechText.trim().toLowerCase();
-    const words = cleanText.split(/\s+/).filter(word => word.length > 0);
-    
-    // Filter out common filler words and check for substance
-    const meaningfulWords = words.filter(word => 
-      word.length > 2 && 
-      !['the', 'and', 'but', 'for', 'are', 'you', 'all', 'can', 'had', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'man', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use', 'uhm', 'hmm', 'uh', 'um', 'ah', 'er', 'well', 'like', 'just', 'that', 'this', 'what', 'when', 'where', 'why', 'with'].includes(word)
-    );
-    
-    // ULTRA STRICT: Require at least 2 meaningful words AND longer text
-    if (meaningfulWords.length < 2 || cleanText.length < 10) {
-      console.log('🎯 Insufficient meaningful content, ignoring:', speechText, 'Meaningful words:', meaningfulWords);
-      setIsListening(true);
-      return;
-    }
-    
-    // Check for repeated patterns that might be speech recognition errors
-    if (words.length > 1) {
-      const uniqueWords = [...new Set(words)];
-      if (uniqueWords.length <= 2 && words.length > 3) {
-        console.log('🎯 Detected repeated word pattern, likely recognition error:', speechText);
-        setIsListening(true);
-        return;
-      }
-    }
-    
-    // Final check for AI business before committing to processing
-    if (isProcessingUserSpeech.current) {
-      console.log('🎯 Already processing speech, ignoring');
       return;
     }
 
-    // Clear listening timeout since we're processing valid speech
-    if (listeningTimeoutRef.current) {
-      clearTimeout(listeningTimeoutRef.current);
-      listeningTimeoutRef.current = null;
-    }
-
-    // Set processing state - this will override listening
+    // Set processing state
     isProcessingUserSpeech.current = true;
-    setIsListening(false); // Stop listening while processing
+    setIsListening(false);
     setUserSpeechBuffer('');
     setWaitingForAI(true);
+    addDebugMessage('🎯 Starting AI processing...');
 
     try {
-      console.log('🎯 Adding user message to conversation');
-      
       // Add user message to conversation first
       const newUserMessage = {
         speaker: 'user',
@@ -613,23 +353,15 @@ const VideoSession = ({ user }) => {
       // Create updated conversation history for API call
       const updatedConversationHistory = [...conversation, newUserMessage];
       
-      console.log('🔄 Sending to backend API with conversation history...');
+      addDebugMessage('🔄 Sending to backend API...');
       const token = await user.getIdToken();
       
       const requestData = {
         sessionId: sessionId,
         userMessage: speechText,
         scenarioId: scenarioId,
-        conversationHistory: updatedConversationHistory // Send the updated history
+        conversationHistory: updatedConversationHistory
       };
-      
-      console.log('🔄 Request data:', {
-        ...requestData,
-        conversationHistory: requestData.conversationHistory.map(msg => ({
-          speaker: msg.speaker,
-          message: msg.message.substring(0, 30) + '...'
-        }))
-      });
       
       const response = await axios.post(
         `${API_BASE_URL}/api/ai/chat`,
@@ -643,13 +375,13 @@ const VideoSession = ({ user }) => {
         }
       );
       
-      console.log('✅ Backend response:', response.data);
+      addDebugMessage('✅ Backend response received');
       
       const aiResponse = response.data?.response;
       const characterName = response.data?.character || 'Customer';
       
       if (aiResponse && aiResponse.trim()) {
-        console.log('✅ Valid AI response received:', aiResponse);
+        addDebugMessage(`✅ AI response: "${aiResponse.substring(0, 50)}..."`);
         
         addToConversation('ai', aiResponse);
         setTranscript(prev => prev + `[${characterName}]: ${aiResponse} `);
@@ -658,41 +390,36 @@ const VideoSession = ({ user }) => {
         // Text-to-speech
         setTimeout(() => {
           speakText(aiResponse);
-        }, 500); // Slightly longer delay
+        }, 300);
         
       } else {
-        console.error('❌ Empty or invalid AI response');
-        throw new Error('Invalid AI response');
+        addDebugMessage('❌ Empty AI response, returning to listening');
+        setWaitingForAI(false);
+        setIsListening(true);
       }
       
     } catch (error) {
-      console.error('❌ Speech processing error:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      
+      addDebugMessage(`❌ API error: ${error.message}`);
       setWaitingForAI(false);
       
       // Simple fallback
-      const fallbackResponse = "Could you say that again? I want to make sure I understand.";
+      const fallbackResponse = "Sorry, could you repeat that?";
       addToConversation('ai', fallbackResponse);
       setTranscript(prev => prev + `[Customer]: ${fallbackResponse} `);
       
       setTimeout(() => {
         speakText(fallbackResponse);
-      }, 500);
+      }, 300);
       
     } finally {
       isProcessingUserSpeech.current = false;
-      console.log('🎯 Speech processing completed');
+      addDebugMessage('🎯 Speech processing completed');
     }
   };
 
   // Add to conversation with duplicate prevention
   const addToConversation = (speaker, message) => {
-    console.log(`💬 Adding ${speaker} message:`, message.substring(0, 50) + '...');
+    addDebugMessage(`💬 Adding ${speaker} message: ${message.substring(0, 30)}...`);
     
     setConversation(prev => {
       // Prevent exact duplicates
@@ -700,7 +427,7 @@ const VideoSession = ({ user }) => {
       if (lastMessage && 
           lastMessage.speaker === speaker && 
           lastMessage.message === message) {
-        console.log('🚫 Duplicate message prevented');
+        addDebugMessage('🚫 Duplicate message prevented');
         return prev;
       }
       
@@ -715,11 +442,14 @@ const VideoSession = ({ user }) => {
   // Enhanced text to speech with automatic gender detection from name
   const speakText = (text) => {
     if ('speechSynthesis' in window && text.trim()) {
-      console.log('🔊 Starting speech synthesis for:', text.substring(0, 50) + '...');
+      addDebugMessage(`🔊 Starting TTS: ${text.substring(0, 30)}...`);
       
       const characterName = scenarioData?.ai_character_name || '';
-      console.log('🔊 Character name:', characterName);
       setIsAISpeaking(true);
+      lastAISpeechTime.current = Date.now();
+      
+      // Stop speech recognition while AI speaks
+      stopSpeechRecognition();
       
       // Cancel any existing speech
       window.speechSynthesis.cancel();
@@ -734,32 +464,18 @@ const VideoSession = ({ user }) => {
       
       // Auto-detect gender from character name
       const detectGenderFromName = (name) => {
-        if (!name) return 'female'; // Default fallback
+        if (!name) return 'female';
         
         const firstName = name.split(' ')[0].toLowerCase();
         
-        // Common female names
         const femaleNames = [
           'sarah', 'jennifer', 'lisa', 'michelle', 'kimberly', 'amy', 'angela', 'helen', 'deborah', 'rachel',
-          'carolyn', 'janet', 'virginia', 'maria', 'heather', 'diane', 'julie', 'joyce', 'victoria', 'kelly',
-          'christina', 'joan', 'evelyn', 'judith', 'andrea', 'hannah', 'jacqueline', 'martha', 'gloria', 'sara',
-          'janice', 'julia', 'kathryn', 'sophia', 'frances', 'alice', 'marie', 'jean', 'janet', 'catherine',
-          'ann', 'anna', 'margaret', 'nancy', 'betty', 'dorothy', 'sandra', 'ashley', 'donna', 'carol',
-          'ruth', 'sharon', 'laura', 'cynthia', 'kathleen', 'helen', 'amy', 'shirley', 'brenda', 'emma',
-          'olivia', 'elizabeth', 'emily', 'madison', 'ava', 'mia', 'abigail', 'ella', 'chloe', 'natalie',
-          'samantha', 'grace', 'sophia', 'isabella', 'zoe', 'lily', 'hannah', 'layla', 'brooklyn', 'alexis'
+          'carolyn', 'janet', 'virginia', 'maria', 'heather', 'diane', 'julie', 'joyce', 'victoria', 'kelly'
         ];
         
-        // Common male names
         const maleNames = [
           'james', 'john', 'robert', 'michael', 'william', 'david', 'richard', 'joseph', 'thomas', 'christopher',
-          'charles', 'daniel', 'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua',
-          'kenneth', 'kevin', 'brian', 'george', 'edward', 'ronald', 'timothy', 'jason', 'jeffrey', 'ryan',
-          'jacob', 'gary', 'nicholas', 'eric', 'jonathan', 'stephen', 'larry', 'justin', 'scott', 'brandon',
-          'benjamin', 'samuel', 'gregory', 'alexander', 'patrick', 'frank', 'raymond', 'jack', 'dennis', 'jerry',
-          'tyler', 'aaron', 'jose', 'henry', 'adam', 'douglas', 'nathan', 'peter', 'zachary', 'kyle',
-          'noah', 'william', 'mason', 'liam', 'lucas', 'ethan', 'oliver', 'aiden', 'elijah', 'james',
-          'jackson', 'logan', 'alexander', 'caleb', 'ryan', 'luke', 'daniel', 'jack', 'connor', 'owen'
+          'charles', 'daniel', 'matthew', 'anthony', 'mark', 'donald', 'steven', 'paul', 'andrew', 'joshua'
         ];
         
         if (femaleNames.includes(firstName)) {
@@ -768,38 +484,26 @@ const VideoSession = ({ user }) => {
           return 'male';
         }
         
-        // Default to female if name not found
         return 'female';
       };
       
       const detectedGender = detectGenderFromName(characterName);
-      console.log('🔊 Detected gender from name:', detectedGender);
       
       // Gender-aware voice selection
       const setVoiceAndSpeak = () => {
         const voices = window.speechSynthesis.getVoices();
-        console.log('🔊 Available voices:', voices.length);
         
-        if (voices.length === 0) {
-          console.log('⚠️ No voices available yet, speaking with default');
-        } else {
+        if (voices.length > 0) {
           let selectedVoice = null;
           
           if (detectedGender === 'female') {
-            // Priority order for female voices
             const femaleVoiceNames = [
               'Microsoft Zira - English (United States)',
               'Google US English Female',
               'Samantha',
-              'Karen',
-              'Moira', 
-              'Tessa',
-              'Veena',
-              'Alex (Premium)',
-              'Fiona'
+              'Karen'
             ];
             
-            // Try to find preferred female voices
             for (const voiceName of femaleVoiceNames) {
               selectedVoice = voices.find(voice => 
                 voice.name.toLowerCase().includes(voiceName.toLowerCase())
@@ -807,30 +511,21 @@ const VideoSession = ({ user }) => {
               if (selectedVoice) break;
             }
             
-            // Fallback: find any female voice by keywords
             if (!selectedVoice) {
               selectedVoice = voices.find(voice => 
                 voice.name.toLowerCase().includes('female') ||
-                voice.name.toLowerCase().includes('woman') ||
                 voice.name.toLowerCase().includes('zira') ||
-                voice.name.toLowerCase().includes('samantha') ||
-                voice.name.toLowerCase().includes('karen') ||
-                (voice.gender && voice.gender.toLowerCase() === 'female')
+                voice.name.toLowerCase().includes('samantha')
               );
             }
-          } else if (detectedGender === 'male') {
-            // Priority order for male voices  
+          } else {
             const maleVoiceNames = [
               'Microsoft David - English (United States)',
               'Google US English Male',
               'Daniel',
-              'Tom',
-              'Fred',
-              'Ralph',
-              'Alex'
+              'Tom'
             ];
             
-            // Try to find preferred male voices
             for (const voiceName of maleVoiceNames) {
               selectedVoice = voices.find(voice => 
                 voice.name.toLowerCase().includes(voiceName.toLowerCase())
@@ -838,80 +533,61 @@ const VideoSession = ({ user }) => {
               if (selectedVoice) break;
             }
             
-            // Fallback: find any male voice by keywords
             if (!selectedVoice) {
               selectedVoice = voices.find(voice => 
                 voice.name.toLowerCase().includes('male') ||
-                voice.name.toLowerCase().includes('man') ||
-                voice.name.toLowerCase().includes('david') ||
-                voice.name.toLowerCase().includes('daniel') ||
-                voice.name.toLowerCase().includes('tom') ||
-                (voice.gender && voice.gender.toLowerCase() === 'male')
+                voice.name.toLowerCase().includes('david')
               );
             }
           }
           
-          // Final fallback: use first English voice
           if (!selectedVoice) {
-            selectedVoice = voices.find(voice => 
-              voice.lang.startsWith('en-')
-            );
+            selectedVoice = voices.find(voice => voice.lang.startsWith('en-'));
           }
           
           if (selectedVoice) {
             utterance.voice = selectedVoice;
-            console.log('🔊 Selected voice:', selectedVoice.name, 'for detected gender:', detectedGender);
-          } else {
-            console.log('⚠️ Using default voice for detected gender:', detectedGender);
+            addDebugMessage(`🔊 Selected voice: ${selectedVoice.name}`);
           }
         }
         
         // Event listeners with COMPLETE speech recognition shutdown
         utterance.onstart = () => {
-          console.log('🔊 AI SPEECH STARTED - SHUTTING DOWN ALL RECOGNITION');
+          addDebugMessage('🔊 AI speech started - recognition stopped');
           setIsAISpeaking(true);
           setIsListening(false);
-          lastAISpeechTime.current = Date.now();
-          
-          // COMPLETELY STOP speech recognition
-          stopSpeechRecognition();
         };
         
         utterance.onend = () => {
-          console.log('🔊 AI SPEECH ENDED');
+          addDebugMessage('🔊 AI speech ended - waiting 3s before restart');
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
           lastAISpeechTime.current = Date.now();
           
-          // Wait 3 seconds of complete silence before allowing recognition restart
-          console.log('🔊 AI finished speaking, waiting 3 seconds of silence...');
+          // Wait 3 seconds before restarting recognition
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current && !isAISpeaking) {
-              console.log('🔊 3-second silence complete, restarting speech recognition');
-              startSpeechRecognition();
-            } else {
-              console.log('🔊 AI still busy, not restarting recognition');
+              addDebugMessage('🔊 Restarting recognition after AI speech');
+              forceStartRecognition();
             }
-          }, 3000); // Reduced from 5000 to 3000ms
+          }, 3000);
         };
         
         utterance.onerror = (event) => {
-          console.error('❌ Speech error:', event.error);
+          addDebugMessage(`❌ Speech error: ${event.error}`);
           setIsAISpeaking(false);
           speechSynthesisRef.current = null;
           lastAISpeechTime.current = Date.now();
           
-          // Same 3-second delay on error
           setTimeout(() => {
             if (!waitingForAI && !isProcessingUserSpeech.current && !isAISpeaking) {
-              startSpeechRecognition();
+              forceStartRecognition();
             }
           }, 3000);
         };
         
         // Speak the text
         speechSynthesisRef.current = utterance;
-        console.log('🔊 About to speak with voice:', utterance.voice?.name || 'default');
         window.speechSynthesis.speak(utterance);
       };
       
@@ -919,16 +595,13 @@ const VideoSession = ({ user }) => {
       if (window.speechSynthesis.getVoices().length > 0) {
         setVoiceAndSpeak();
       } else {
-        // Wait for voices to load
-        console.log('⏳ Waiting for voices to load...');
         window.speechSynthesis.onvoiceschanged = () => {
-          console.log('✅ Voices loaded');
           setVoiceAndSpeak();
-          window.speechSynthesis.onvoiceschanged = null; // Remove listener
+          window.speechSynthesis.onvoiceschanged = null;
         };
       }
     } else {
-      console.error('❌ Speech synthesis not supported or empty text');
+      addDebugMessage('❌ Speech synthesis not supported or empty text');
       setIsAISpeaking(false);
     }
   };
@@ -936,7 +609,7 @@ const VideoSession = ({ user }) => {
   // End session
   const endSession = async () => {
     try {
-      console.log('🔍 ===== FRONTEND END SESSION DEBUG =====');
+      addDebugMessage('🔍 Ending session...');
       setIsEndingSession(true);
       cleanup();
 
@@ -963,7 +636,7 @@ const VideoSession = ({ user }) => {
       setIsEndingSession(false);
 
     } catch (error) {
-      console.error('❌ Frontend error ending session:', error);
+      addDebugMessage(`❌ Error ending session: ${error.message}`);
       setIsEndingSession(false);
       setTimeout(() => {
         navigate('/dashboard');
@@ -1085,7 +758,128 @@ const VideoSession = ({ user }) => {
               <h3>Overall Assessment</h3>
               <div className="overall-score">
                 <div className="large-score">
-                  {feedback?.overall_effectiveness_score || 'N/A'}/5
+                  {scenarioData?.ai_character_name ? scenarioData.ai_character_name.charAt(0) : 'AI'}
+              </div>
+            </div>
+            <div className="avatar-status">
+              <div className="character-name">{scenarioData?.ai_character_name || 'AI Character'}</div>
+              <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
+              {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
+              {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
+              {isListening && !isAISpeaking && !waitingForAI && (
+                <div className="listening-indicator">Listening...</div>
+              )}
+              {!isListening && !isAISpeaking && !waitingForAI && (
+                <div className="ready-indicator">Ready to talk</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="session-info">
+        {/* Real-time Speech Feedback */}
+        {userSpeechBuffer && (
+          <div className="speech-buffer-section">
+            <h4>🎤 Speaking:</h4>
+            <div className="speech-buffer-box">
+              {userSpeechBuffer}
+            </div>
+          </div>
+        )}
+
+        {/* Live Conversation Display */}
+        <div className="conversation-section">
+          <h3>Conversation ({conversation.length} exchanges)</h3>
+          <div className="conversation-box">
+            {conversation.length === 0 ? (
+              <div className="empty-conversation">
+                <p>Your conversation will appear here...</p>
+                <p><strong>Try saying:</strong> "Hello" or "Hi there"</p>
+              </div>
+            ) : (
+              <div className="messages-container">
+                {conversation.map((msg, index) => (
+                  <div key={index} className={`message ${msg.speaker}`}>
+                    <div className="message-header">
+                      <strong>
+                        {msg.speaker === 'user' ? '👤 You' : `🤖 ${scenarioData?.ai_character_name || 'AI'}`}
+                      </strong>
+                      <span className="message-time">
+                        {new Date(msg.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div className="message-content">
+                      {msg.message}
+                    </div>
+                  </div>
+                ))}
+                {waitingForAI && (
+                  <div className="message ai typing">
+                    <div className="message-header">
+                      <strong>🤖 {scenarioData?.ai_character_name || 'AI'}</strong>
+                    </div>
+                    <div className="message-content">
+                      <div className="typing-indicator">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Full Transcript Display */}
+        {transcript && (
+          <div className="transcript-section">
+            <h4>📝 Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
+            <div className="transcript-box">
+              {transcript || 'Transcript will appear here...'}
+            </div>
+          </div>
+        )}
+
+        {/* Session Status with Debug Info */}
+        <div className="debug-info">
+          <details>
+            <summary>🔍 Session Status & Debug</summary>
+            <div className="debug-details">
+              <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
+              <p><strong>Microphone:</strong> {microphonePermission}</p>
+              <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>Recognition Active:</strong> {recognitionActive ? '✅ Yes' : '❌ No'}</p>
+              <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
+              <p><strong>AI Status:</strong> {
+                isAISpeaking ? '🗣️ Speaking' : 
+                waitingForAI ? '🤖 Thinking' : 
+                isListening ? '👂 Listening' :
+                '⏸️ Ready'
+              }</p>
+              <p><strong>Speech Buffer:</strong> {userSpeechBuffer || 'Empty'}</p>
+              <p><strong>Exchanges:</strong> {conversation.length}</p>
+              <p><strong>Browser:</strong> {navigator.userAgent.includes('Chrome') ? 'Chrome ✅' : 'Other ⚠️'}</p>
+              
+              <div style={{marginTop: '10px'}}>
+                <strong>Debug Log:</strong>
+                {debugInfo.map((msg, i) => (
+                  <div key={i} style={{fontSize: '11px', color: '#666', marginTop: '2px'}}>
+                    {msg}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default VideoSession;feedback?.overall_effectiveness_score || 'N/A'}/5
                 </div>
                 <p>Overall Sales Effectiveness</p>
               </div>
@@ -1153,8 +947,17 @@ const VideoSession = ({ user }) => {
               <span>📝 You're saying: "{userSpeechBuffer.substring(0, 40)}..."</span>
             )}
             {!isListening && !isAISpeaking && !waitingForAI && !userSpeechBuffer && (
-              <span>⏸️ Ready (Recognition: {recognitionActive ? 'Active' : 'Inactive'})</span>
+              <span>⏸️ Ready (Mic: {microphonePermission})</span>
             )}
+          </div>
+          
+          <div className="debug-controls">
+            <button onClick={testMicrophone} className="process-speech-button">
+              Test Microphone
+            </button>
+            <button onClick={forceStartRecognition} className="clear-buffer-button">
+              Start Recognition
+            </button>
           </div>
           
           <button onClick={endSession} className="end-session-button">
@@ -1169,114 +972,4 @@ const VideoSession = ({ user }) => {
           <div className={`ai-avatar ${isAISpeaking ? 'speaking' : ''} ${waitingForAI ? 'thinking' : ''}`}>
             <div className="avatar-image">
               <div className="avatar-placeholder">
-                {scenarioData?.ai_character_name ? scenarioData.ai_character_name.charAt(0) : 'AI'}
-              </div>
-            </div>
-            <div className="avatar-status">
-              <div className="character-name">{scenarioData?.ai_character_name || 'AI Character'}</div>
-              <div className="character-role">{scenarioData?.ai_character_role || 'Customer'}</div>
-              {isAISpeaking && <div className="speaking-indicator">Speaking...</div>}
-              {waitingForAI && <div className="thinking-indicator">Thinking...</div>}
-              {isListening && !isAISpeaking && !waitingForAI && (
-                <div className="listening-indicator">Listening...</div>
-              )}
-              {!isListening && !isAISpeaking && !waitingForAI && (
-                <div className="ready-indicator">Ready to talk</div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="session-info">
-        {/* Real-time Speech Feedback */}
-        {userSpeechBuffer && (
-          <div className="speech-buffer-section">
-            <h4>🎤 Speaking:</h4>
-            <div className="speech-buffer-box">
-              {userSpeechBuffer}
-            </div>
-          </div>
-        )}
-
-        {/* Live Conversation Display */}
-        <div className="conversation-section">
-          <h3>Conversation ({conversation.length} exchanges)</h3>
-          <div className="conversation-box">
-            {conversation.length === 0 ? (
-              <div className="empty-conversation">
-                <p>Your conversation will appear here...</p>
-              </div>
-            ) : (
-              <div className="messages-container">
-                {conversation.map((msg, index) => (
-                  <div key={index} className={`message ${msg.speaker}`}>
-                    <div className="message-header">
-                      <strong>
-                        {msg.speaker === 'user' ? '👤 You' : `🤖 ${scenarioData?.ai_character_name || 'AI'}`}
-                      </strong>
-                      <span className="message-time">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </span>
-                    </div>
-                    <div className="message-content">
-                      {msg.message}
-                    </div>
-                  </div>
-                ))}
-                {waitingForAI && (
-                  <div className="message ai typing">
-                    <div className="message-header">
-                      <strong>🤖 {scenarioData?.ai_character_name || 'AI'}</strong>
-                    </div>
-                    <div className="message-content">
-                      <div className="typing-indicator">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Full Transcript Display */}
-        {transcript && (
-          <div className="transcript-section">
-            <h4>📝 Transcript ({transcript.split(' ').filter(w => w.length > 0).length} words)</h4>
-            <div className="transcript-box">
-              {transcript || 'Transcript will appear here...'}
-            </div>
-          </div>
-        )}
-
-        {/* Session Status */}
-        <div className="debug-info">
-          <details>
-            <summary>🔍 Session Status</summary>
-            <div className="debug-details">
-              <p><strong>Character:</strong> {scenarioData?.ai_character_name || 'Loading...'}</p>
-              <p><strong>Recording:</strong> {isRecording ? '✅ Active' : '❌ Inactive'}</p>
-              <p><strong>Recognition Active:</strong> {recognitionActive ? '✅ Yes' : '❌ No'}</p>
-              <p><strong>Listening:</strong> {isListening ? '✅ Active' : '❌ Inactive'}</p>
-              <p><strong>AI Status:</strong> {
-                isAISpeaking ? '🗣️ Speaking' : 
-                waitingForAI ? '🤖 Thinking' : 
-                isListening ? '👂 Listening' :
-                '⏸️ Ready'
-              }</p>
-              <p><strong>Speech Buffer:</strong> {userSpeechBuffer || 'Empty'}</p>
-              <p><strong>Exchanges:</strong> {conversation.length}</p>
-              <p><strong>Last AI Speech:</strong> {lastAISpeechTime.current > 0 ? `${Math.round((Date.now() - lastAISpeechTime.current) / 1000)}s ago` : 'Never'}</p>
-            </div>
-          </details>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default VideoSession;
+                {
