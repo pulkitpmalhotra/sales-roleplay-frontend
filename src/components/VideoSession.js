@@ -789,30 +789,6 @@ const VideoSession = ({ user }) => {
       </div>
     );
   }
-          {feedback?.aiFeedback && (
-            <div className="ai-feedback-section google-ads">
-              <h3>🎯 Coach Feedback</h3>
-              <div className="ai-feedback-text">
-                {feedback.aiFeedback}
-              </div>
-            </div>
-          )}
-
-          <div className="feedback-actions">
-            <button onClick={goToDashboard} className="primary-button">
-              Back to Dashboard
-            </button>
-            <button 
-              onClick={() => window.location.reload()} 
-              className="secondary-button"
-            >
-              Practice Again
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Active session state with AI avatar
   return (
